@@ -4,6 +4,7 @@ const config = {
   port: parseInt(process.env.PORT, 10) || 3402,
   host: process.env.HOST || '0.0.0.0',
   walletAddress: process.env.WALLET_ADDRESS,
+  solanaWalletAddress: process.env.SOLANA_WALLET_ADDRESS,
   facilitatorUrl: process.env.FACILITATOR_URL || 'https://facilitator.payai.network',
   network: process.env.NETWORK || 'base',
   signingKeyPath: process.env.SIGNING_KEY_PATH || './keys/ed25519_private.pem',

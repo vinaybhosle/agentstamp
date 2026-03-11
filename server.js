@@ -31,35 +31,47 @@ app.use((err, req, res, next) => {
 });
 app.use(rateLimiter);
 
-// x402 payment middleware
+// x402 payment middleware (V2 — dual-chain: Base + Solana)
 (async () => {
   try {
-    const x402 = require('x402-express');
-    const paymentMiddleware = x402.paymentMiddleware || x402.default?.paymentMiddleware || x402;
+    const { paymentMiddleware, x402ResourceServer } = require('@x402/express');
+    const { ExactEvmScheme } = require('@x402/evm/exact/server');
+    const { ExactSvmScheme } = require('@x402/svm/exact/server');
+    const { HTTPFacilitatorClient } = require('@x402/core/server');
 
-    if (typeof paymentMiddleware === 'function') {
-      app.use(
-        paymentMiddleware(
-          config.walletAddress,
-          {
-            'POST /api/v1/stamp/mint/bronze': { price: '$0.001', network: config.network },
-            'POST /api/v1/stamp/mint/silver': { price: '$0.005', network: config.network },
-            'POST /api/v1/stamp/mint/gold': { price: '$0.01', network: config.network },
-            'POST /api/v1/registry/register': { price: '$0.01', network: config.network },
-            'PUT /api/v1/registry/update/[agentId]': { price: '$0.005', network: config.network },
-            'POST /api/v1/registry/endorse/[agentId]': { price: '$0.005', network: config.network },
-            'POST /api/v1/well/wish': { price: '$0.001', network: config.network },
-            'POST /api/v1/well/grant/[wishId]': { price: '$0.005', network: config.network },
-          },
-          { url: config.facilitatorUrl }
-        )
-      );
-      console.log('x402 payment middleware loaded (PayAI facilitator)');
-    } else {
-      console.warn('x402-express loaded but paymentMiddleware not found — paid routes unprotected');
+    const BASE_NETWORK = 'eip155:8453';
+    const SOLANA_NETWORK = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+
+    const facilitatorClient = new HTTPFacilitatorClient({ url: config.facilitatorUrl });
+    const resourceServer = new x402ResourceServer(facilitatorClient)
+      .register(BASE_NETWORK, new ExactEvmScheme())
+      .register('solana:*', new ExactSvmScheme());
+
+    function dualChainAccepts(price) {
+      const accepts = [
+        { scheme: 'exact', price, network: BASE_NETWORK, payTo: config.walletAddress },
+      ];
+      if (config.solanaWalletAddress) {
+        accepts.push({ scheme: 'exact', price, network: SOLANA_NETWORK, payTo: config.solanaWalletAddress });
+      }
+      return accepts;
     }
+
+    const paidRoutes = {
+      'POST /api/v1/stamp/mint/bronze': { accepts: dualChainAccepts('$0.001'), description: 'Mint bronze identity certificate (24h)' },
+      'POST /api/v1/stamp/mint/silver': { accepts: dualChainAccepts('$0.005'), description: 'Mint silver identity certificate (7d)' },
+      'POST /api/v1/stamp/mint/gold': { accepts: dualChainAccepts('$0.01'), description: 'Mint gold identity certificate (30d)' },
+      'POST /api/v1/registry/register': { accepts: dualChainAccepts('$0.01'), description: 'Register agent in directory (30d)' },
+      'PUT /api/v1/registry/update/[agentId]': { accepts: dualChainAccepts('$0.005'), description: 'Update agent listing' },
+      'POST /api/v1/registry/endorse/[agentId]': { accepts: dualChainAccepts('$0.005'), description: 'Endorse an agent' },
+      'POST /api/v1/well/wish': { accepts: dualChainAccepts('$0.001'), description: 'Cast a wish for a capability' },
+      'POST /api/v1/well/grant/[wishId]': { accepts: dualChainAccepts('$0.005'), description: 'Grant a wish' },
+    };
+
+    app.use(paymentMiddleware(paidRoutes, resourceServer));
+    console.log('x402 payment middleware loaded (V2 dual-chain: Base + Solana)');
   } catch (err) {
-    console.warn('x402-express not available — paid routes will work without payment gating:', err.message);
+    console.warn('x402 middleware not available — paid routes will work without payment gating:', err.message);
   }
 
   // Routes
@@ -85,11 +97,12 @@ app.use(rateLimiter);
     res.json({
       x402Version: 2,
       name: 'AgentStamp — Identity, Registry & Wishing Well for AI Agents',
-      description: 'Mint cryptographic identity certificates, register in a public agent directory, and cast wishes for capabilities. Accepts USDC on Base via x402.',
+      description: 'Mint cryptographic identity certificates, register in a public agent directory, and cast wishes for capabilities. Accepts USDC on Base and Solana via x402.',
       endpoints: 8,
       facilitator: config.facilitatorUrl,
       networks: {
         base: { network: 'eip155:8453', payTo: config.walletAddress },
+        ...(config.solanaWalletAddress ? { solana: { network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp', payTo: config.solanaWalletAddress } } : {}),
       },
       pricing: {
         'stamp/mint/bronze': '$0.001',
@@ -149,7 +162,7 @@ GET /api/v1/well/wish/:wishId — Wish detail with grant history
 GET /api/v1/well/trending — Trending wish categories
 GET /api/v1/well/stats — Wish statistics
 
-## Paid Endpoints (x402 — USDC on Base)
+## Paid Endpoints (x402 — USDC on Base & Solana)
 POST /api/v1/stamp/mint/bronze — Bronze identity certificate, 24h ($0.001/call)
 POST /api/v1/stamp/mint/silver — Silver identity certificate, 7d ($0.005/call)
 POST /api/v1/stamp/mint/gold — Gold identity certificate, 30d ($0.01/call)
@@ -160,10 +173,11 @@ POST /api/v1/well/wish — Cast a wish for a capability ($0.001/call)
 POST /api/v1/well/grant/:wishId — Grant a wish ($0.005/call)
 
 ## Payment Info
-Protocol: x402 (Base L2)
-Network: Base Mainnet (eip155:8453)
+Protocol: x402
+Networks: Base Mainnet (eip155:8453), Solana Mainnet
 Asset: USDC
-Pay To: ${config.walletAddress}
+Pay To (Base): ${config.walletAddress}
+Pay To (Solana): ${config.solanaWalletAddress || 'N/A'}
 Facilitator: ${config.facilitatorUrl}
 
 ## Discovery

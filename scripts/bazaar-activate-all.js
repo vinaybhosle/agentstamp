@@ -2,11 +2,13 @@
 /**
  * Activate ALL 8 paid endpoints on Bazaar by making one real payment on each.
  *
- * Usage:
- *   PAYER_PRIVATE_KEY=<base58_solana_key> node scripts/bazaar-activate-all.js
- *   node scripts/bazaar-activate-all.js --key <base58_solana_key>
+ * Usage (Solana):
+ *   PAYER_PRIVATE_KEY=<base58_solana_key> node scripts/bazaar-activate-all.js --chain solana
  *
- * Cost: ~$0.042 USDC (all 8 endpoints)
+ * Usage (Base/EVM):
+ *   PAYER_PRIVATE_KEY=<hex_evm_key> node scripts/bazaar-activate-all.js --chain base
+ *
+ * Cost: ~$0.042 USDC per chain (all 8 endpoints)
  */
 
 const BASE_URL = 'https://agentstamp.org';
@@ -23,40 +25,72 @@ const ENDPOINTS = [
 ];
 
 let privateKey = process.env.PAYER_PRIVATE_KEY;
+let chain = 'solana'; // default to solana
 const args = process.argv.slice(2);
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--key' && args[i + 1]) privateKey = args[++i];
+  if (args[i] === '--chain' && args[i + 1]) chain = args[++i].toLowerCase();
 }
 
 if (!privateKey) {
-  console.log('\nUsage: PAYER_PRIVATE_KEY=<base58_key> node scripts/bazaar-activate-all.js\n');
+  console.log('\nUsage: PAYER_PRIVATE_KEY=<key> node scripts/bazaar-activate-all.js --chain <solana|base>\n');
+  console.log('  --chain solana  (default) Base58 Solana private key, pays with USDC on Solana');
+  console.log('  --chain base    0x-prefixed hex EVM key, pays with USDC on Base\n');
   process.exit(1);
+}
+
+async function setupSolana() {
+  const { wrapFetchWithPayment } = require('@x402/fetch');
+  const { x402Client } = require('@x402/core/client');
+  const { ExactSvmScheme, toClientSvmSigner } = require('@x402/svm');
+  const { createKeyPairSignerFromPrivateKeyBytes } = require('@solana/kit');
+  const { decode: decodeBase58 } = require('@scure/base').base58;
+
+  const keyBytes = decodeBase58(privateKey);
+  const signer = await createKeyPairSignerFromPrivateKeyBytes(keyBytes.slice(0, 32));
+  const svmSigner = toClientSvmSigner(signer);
+  const svmScheme = new ExactSvmScheme(svmSigner);
+  const client = new x402Client();
+  client.register('solana:*', svmScheme);
+  const fetchPaid = wrapFetchWithPayment(fetch, client);
+
+  console.log(`  Solana signer ready (${signer.address}).\n`);
+  return fetchPaid;
+}
+
+async function setupBase() {
+  const { wrapFetchWithPayment } = require('@x402/fetch');
+  const { x402Client } = require('@x402/core/client');
+  const { ExactEvmScheme, toClientEvmSigner } = require('@x402/evm');
+  const { createWalletClient, publicActions, http } = require('viem');
+  const { base } = require('viem/chains');
+  const { privateKeyToAccount } = require('viem/accounts');
+
+  const key = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
+  const account = privateKeyToAccount(key);
+  const walletClient = createWalletClient({ account, chain: base, transport: http() }).extend(publicActions);
+  const evmSigner = toClientEvmSigner(walletClient);
+  const evmScheme = new ExactEvmScheme(evmSigner);
+  const client = new x402Client();
+  client.register('base', evmScheme);
+  const fetchPaid = wrapFetchWithPayment(fetch, client);
+
+  console.log(`  EVM signer ready (${account.address}).\n`);
+  return fetchPaid;
 }
 
 async function main() {
   const totalCost = ENDPOINTS.reduce((s, e) => s + parseFloat(e.price.replace('$', '')), 0);
-  console.log(`\n  Bazaar Activation — ${ENDPOINTS.length} endpoints, $${totalCost.toFixed(3)} USDC total\n`);
+  const chainLabel = chain === 'solana' ? 'Solana' : 'Base';
+  console.log(`\n  Bazaar Activation — ${ENDPOINTS.length} endpoints, $${totalCost.toFixed(3)} USDC on ${chainLabel}\n`);
 
-  // Try loading x402 client libraries from api-gateway or local node_modules
-  let wrapFetchWithPayment, x402Client, ExactSvmScheme, createKeyPairSignerFromBytes, base58;
+  let fetchPaid;
   try {
-    ({ wrapFetchWithPayment } = require('@x402/fetch'));
-    ({ x402Client } = require('@x402/core/client'));
-    ({ ExactSvmScheme } = require('@x402/svm'));
-    ({ createKeyPairSignerFromBytes } = require('@solana/kit'));
-    ({ base58 } = require('@scure/base'));
-  } catch {
-    console.error('  Missing dependencies. Install: npm i @x402/fetch @x402/core @x402/svm @solana/kit @scure/base');
+    fetchPaid = chain === 'solana' ? await setupSolana() : await setupBase();
+  } catch (err) {
+    console.error(`  Failed to set up ${chainLabel} signer: ${err.message}`);
     process.exit(1);
   }
-
-  const client = new x402Client();
-  const keyBytes = base58.decode(privateKey);
-  const svmSigner = await createKeyPairSignerFromBytes(keyBytes);
-  client.register('solana:*', new ExactSvmScheme(svmSigner));
-  const fetchPaid = wrapFetchWithPayment(fetch, client);
-
-  console.log('  Solana signer ready.\n');
 
   let ok = 0, fail = 0;
   for (let i = 0; i < ENDPOINTS.length; i++) {
