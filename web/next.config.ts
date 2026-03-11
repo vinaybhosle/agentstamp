@@ -16,6 +16,18 @@ const nextConfig: NextConfig = {
         source: "/health",
         destination: `${apiBackend}/health`,
       },
+      {
+        source: "/llms.txt",
+        destination: `${apiBackend}/llms.txt`,
+      },
+      {
+        source: "/robots.txt",
+        destination: `${apiBackend}/robots.txt`,
+      },
+      {
+        source: "/og-image.png",
+        destination: `${apiBackend}/og-image.png`,
+      },
     ];
   },
 };

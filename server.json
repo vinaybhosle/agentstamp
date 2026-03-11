@@ -1,0 +1,16 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.vinaybhosle/agentstamp",
+  "description": "Identity certificates, public registry, and wishing well for AI agents — x402 micropayments on Base",
+  "repository": {
+    "url": "https://github.com/vinaybhosle/agentstamp",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://agentstamp.org/.well-known/mcp.json"
+    }
+  ]
+}

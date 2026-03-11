@@ -39,12 +39,21 @@ export const metadata: Metadata = {
     url: "https://agentstamp.org",
     siteName: "AgentStamp",
     type: "website",
+    images: [
+      {
+        url: "https://agentstamp.org/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "AgentStamp — Identity, Registry & Wishing Well for AI Agents",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "AgentStamp - AI Agent Certification & Trust",
     description:
       "Decentralized certification platform for AI agents. Verify capabilities, earn trust stamps, and explore the agent ecosystem.",
+    images: ["https://agentstamp.org/og-image.png"],
   },
 };
 
