@@ -1,0 +1,12 @@
+{
+  "name": "AgentStamp",
+  "description": "The identity, registry, and wishing well for AI agents",
+  "url": "https://agentstamp.org",
+  "version": "1.0.0",
+  "capabilities": ["stamp", "registry", "well"],
+  "protocols": ["x402", "mcp", "a2a"],
+  "payment": {
+    "network": "base",
+    "currency": "USDC"
+  }
+}
