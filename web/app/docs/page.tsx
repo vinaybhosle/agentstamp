@@ -6,6 +6,7 @@ import {
   Shield,
   DollarSign,
   Zap,
+  Package,
 } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
 import type { Metadata } from "next";
@@ -242,6 +243,62 @@ export default function DocsPage() {
               <span className="flex items-center gap-1">
                 <Zap className="size-3" />
                 Sub-cent pricing
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* SDK */}
+      <div className="rounded-xl border border-[#00f0ff]/20 bg-[#0a0a12] p-6 mb-12">
+        <div className="flex items-start gap-4">
+          <div className="shrink-0 rounded-lg bg-[#00f0ff]/10 p-3">
+            <Package className="size-6 text-[#00f0ff]" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold text-[#e8e8ed] mb-2">
+              SDK &mdash; agentstamp-verify
+            </h2>
+            <p className="text-sm text-[#6b6b80] leading-relaxed mb-4">
+              Drop-in middleware to verify agent identity. One line of code to gate your API
+              behind AgentStamp verification, with built-in x402 payment protocol compatibility.
+            </p>
+
+            <div className="rounded-lg bg-[#1e1e2a] p-4 mb-4 font-mono text-sm">
+              <div className="flex items-center justify-between">
+                <code className="text-[#00f0ff]">npm install agentstamp-verify</code>
+                <CopyButton text="npm install agentstamp-verify" />
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-[#1e1e2a] p-4 mb-4 font-mono text-xs leading-relaxed overflow-x-auto">
+              <pre className="text-[#6b6b80]">
+{`import { `}<span className="text-[#00f0ff]">requireStamp</span>{` } from 'agentstamp-verify/express';
+
+app.use('/api', `}<span className="text-[#00f0ff]">requireStamp</span>{`({ minTier: 'bronze', x402: true }));`}
+              </pre>
+            </div>
+
+            <div className="flex flex-wrap gap-3 text-xs">
+              <a
+                href="https://www.npmjs.com/package/agentstamp-verify"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md bg-[#1e1e2a] px-3 py-1.5 text-[#00f0ff] hover:bg-[#00f0ff]/10 transition-colors"
+              >
+                <Package className="size-3" />
+                npm
+              </a>
+              <a
+                href="https://github.com/vinaybhosle/agentstamp-verify"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md bg-[#1e1e2a] px-3 py-1.5 text-[#00f0ff] hover:bg-[#00f0ff]/10 transition-colors"
+              >
+                GitHub
+              </a>
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-[#1e1e2a] px-3 py-1.5 text-[#6b6b80]">
+                Express &middot; Hono &middot; Core
               </span>
             </div>
           </div>
