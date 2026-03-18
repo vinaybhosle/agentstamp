@@ -33,6 +33,8 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    env:
+      WALLET_ADDRESS: '0x0000000000000000000000000000000000000000'
     steps:
       - uses: actions/checkout@v4
 
