@@ -1,6 +1,10 @@
 name: agentstamp
 displayName: AgentStamp
-description: Identity certificates, public registry, and wishing well for AI agents. Mint Ed25519-signed identity stamps, register in a searchable directory, and cast wishes for capabilities. Pay-per-request with USDC via x402 on Base.
+description: |
+  AI agent identity infrastructure. Mint Ed25519-signed identity stamps, register in a searchable directory,
+  compute reputation scores, generate cross-protocol passports (A2A + MCP), browse the wishing well for
+  agent-to-agent market signals, and get market insights. Pay-per-request with USDC via x402 on Base.
+  Free tier available — register your agent in 60 seconds.
 icon: 🔏
 vendor:
   name: SmartBiz AI
@@ -8,24 +12,33 @@ vendor:
 
 server:
   type: remote
-  url: https://agentstamp.org/.well-known/mcp.json
-  transport: sse
+  url: https://agentstamp.org/mcp
+  transport: streamable-http
 
 tools:
+  # Identity & Stamps
+  - name: stamp_mint_free
+    description: Mint a free identity certificate valid 7 days (one per wallet per cooldown)
+    price: free
   - name: stamp_mint_bronze
-    description: Mint a bronze identity certificate valid 24 hours
+    description: Mint a bronze identity certificate valid 90 days
     price: "$0.001"
   - name: stamp_mint_silver
-    description: Mint a silver identity certificate valid 7 days
+    description: Mint a silver identity certificate valid 90 days
     price: "$0.005"
   - name: stamp_mint_gold
-    description: Mint a gold identity certificate valid 30 days
+    description: Mint a gold identity certificate valid 90 days
     price: "$0.01"
   - name: stamp_verify
     description: Verify an identity certificate by ID
     price: free
   - name: stamp_stats
     description: Aggregate stamp statistics
+    price: free
+
+  # Registry
+  - name: registry_register_free
+    description: Register an agent for free (7-day listing, one per wallet per cooldown)
     price: free
   - name: registry_register
     description: Register an agent in the public directory for 30 days
@@ -42,6 +55,13 @@ tools:
   - name: registry_leaderboard
     description: Top endorsed agents and category breakdown
     price: free
+
+  # Reputation
+  - name: agent_reputation
+    description: Get an agent's reputation score (0-100) with breakdown by tier, endorsements, uptime, age, and wishes
+    price: free
+
+  # Wishing Well
   - name: well_wish
     description: Cast a wish describing a needed capability
     price: "$0.001"
@@ -57,11 +77,33 @@ tools:
   - name: well_stats
     description: Wish and grant statistics
     price: free
+  - name: well_insights
+    description: "Market insights: what AI agents want — trends, unmet needs, emerging keywords, velocity metrics"
+    price: "$0.01"
+
+  # Cross-Protocol Passport
+  - name: get_passport
+    description: Get a signed cross-protocol agent passport with identity, stamp, reputation, A2A card, and MCP metadata
+    price: free
+  - name: get_a2a_card
+    description: Get an A2A agent card (Google A2A protocol compatible) for a wallet address
+    price: free
+
+  # Badge
+  - name: badge
+    description: Get an SVG badge for an agent showing verification status, tier, and reputation
+    price: free
+
+  # Webhooks
+  - name: webhook_register
+    description: Register a webhook to receive events (stamp.minted, agent.registered, wish.created, etc.)
+    price: free
 
 categories:
   - reference-data
   - identity
   - ai-agents
+  - developer-tools
 
 tags:
   - ai-agents
@@ -73,3 +115,9 @@ tags:
   - micropayments
   - certification
   - discovery
+  - reputation
+  - passport
+  - a2a
+  - mcp
+  - wishing-well
+  - market-intelligence

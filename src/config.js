@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const config = {
-  port: parseInt(process.env.PORT, 10) || 3402,
+  port: parseInt(process.env.PORT, 10) || 4005,
   host: process.env.HOST || '0.0.0.0',
   walletAddress: process.env.WALLET_ADDRESS,
   solanaWalletAddress: process.env.SOLANA_WALLET_ADDRESS,

@@ -1,10 +1,12 @@
 {
   "name": "AgentStamp",
-  "description": "The identity, registry, and wishing well for AI agents",
+  "description": "The identity, registry, and wishing well for AI agents. Reputation scores, cross-protocol passports, and live MCP discovery.",
   "url": "https://agentstamp.org",
-  "version": "1.0.0",
-  "capabilities": ["stamp", "registry", "well"],
+  "version": "2.0.0",
+  "capabilities": ["stamp", "registry", "well", "reputation", "passport", "insights"],
   "protocols": ["x402", "mcp", "a2a"],
+  "mcp_endpoint": "https://agentstamp.org/mcp",
+  "passport_endpoint": "https://agentstamp.org/api/v1/passport/{walletAddress}",
   "payment": {
     "network": "base",
     "currency": "USDC"

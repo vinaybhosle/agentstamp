@@ -9,15 +9,17 @@ import {
   Award,
   ExternalLink,
   MessageSquare,
+  TrendingUp,
 } from "lucide-react";
 import { CategoryBadge } from "@/components/CategoryBadge";
-import type { Agent, Endorsement } from "@/types";
+import type { Agent, Endorsement, Reputation } from "@/types";
 import type { Metadata } from "next";
 
-const API_BASE = process.env.API_URL || "http://localhost:3405";
+const API_BASE = process.env.API_URL || "http://localhost:4005";
 
 interface AgentResponse extends Agent {
   endorsements?: Endorsement[];
+  reputation?: { score: number; label: string } | null;
 }
 
 async function getAgent(agentId: string): Promise<AgentResponse | null> {
@@ -28,6 +30,26 @@ async function getAgent(agentId: string): Promise<AgentResponse | null> {
     if (!res.ok) return null;
     const json = await res.json();
     return json.agent ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function getReputation(agentId: string): Promise<Reputation | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/registry/agent/${agentId}/reputation`, {
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.success) return null;
+    return {
+      score: json.score,
+      label: json.label,
+      breakdown: json.breakdown,
+      factors: json.factors,
+      max_possible: json.max_possible,
+    };
   } catch {
     return null;
   }
@@ -53,11 +75,32 @@ export default async function AgentProfilePage({
   params: Promise<{ agentId: string }>;
 }) {
   const { agentId } = await params;
-  const agent = await getAgent(agentId);
+  const [agent, reputation] = await Promise.all([
+    getAgent(agentId),
+    getReputation(agentId),
+  ]);
 
   if (!agent) {
     notFound();
   }
+
+  const labelColors: Record<string, string> = {
+    new: "text-[#6b6b80]",
+    emerging: "text-[#00f0ff]",
+    established: "text-[#00ff88]",
+    elite: "text-[#ffd700]",
+  };
+
+  const labelBgColors: Record<string, string> = {
+    new: "bg-[#6b6b80]/10 border-[#6b6b80]/20",
+    emerging: "bg-[#00f0ff]/10 border-[#00f0ff]/20",
+    established: "bg-[#00ff88]/10 border-[#00ff88]/20",
+    elite: "bg-[#ffd700]/10 border-[#ffd700]/20",
+  };
+
+  const scoreColor = reputation
+    ? labelColors[reputation.label] || "text-[#e8e8ed]"
+    : "text-[#e8e8ed]";
 
   const statusColor =
     agent.status === "active"
@@ -178,6 +221,59 @@ export default async function AgentProfilePage({
           <h2 className="text-sm font-semibold text-[#e8e8ed] uppercase tracking-wider">
             Performance
           </h2>
+
+          {/* Reputation Score */}
+          {reputation && (
+            <div className="rounded-lg bg-[#050508] border border-[#1e1e2a] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className={`size-4 ${scoreColor}`} />
+                  <span className="text-xs text-[#6b6b80] uppercase tracking-wider">Reputation Score</span>
+                </div>
+                <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full border ${labelBgColors[reputation.label] || ""} ${labelColors[reputation.label] || ""}`}>
+                  {reputation.label}
+                </span>
+              </div>
+              <div className="flex items-end gap-2 mb-3">
+                <span className={`text-4xl font-bold font-mono ${scoreColor}`}>{reputation.score}</span>
+                <span className="text-sm text-[#6b6b80] mb-1">/100</span>
+              </div>
+              {/* Score bar */}
+              <div className="w-full h-2 bg-[#1e1e2a] rounded-full overflow-hidden mb-4">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${reputation.score}%`,
+                    background: reputation.label === "elite"
+                      ? "linear-gradient(90deg, #ffd700, #ffaa00)"
+                      : reputation.label === "established"
+                        ? "linear-gradient(90deg, #00ff88, #00cc6a)"
+                        : reputation.label === "emerging"
+                          ? "linear-gradient(90deg, #00f0ff, #0088cc)"
+                          : "linear-gradient(90deg, #6b6b80, #4a4a5a)",
+                  }}
+                />
+              </div>
+              {/* Breakdown bars */}
+              <div className="space-y-2">
+                {Object.entries(reputation.breakdown).map(([key, val]) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <span className="text-[10px] text-[#6b6b80] w-24 capitalize">{key}</span>
+                    <div className="flex-1 h-1.5 bg-[#1e1e2a] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#00f0ff]/60 rounded-full"
+                        style={{ width: `${(val / reputation.max_possible[key as keyof typeof reputation.max_possible]) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-mono text-[#6b6b80] w-10 text-right">
+                      {val}/{reputation.max_possible[key as keyof typeof reputation.max_possible]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div className="rounded-lg bg-[#050508] border border-[#1e1e2a] p-4 text-center">
               <p className="text-2xl font-bold font-mono text-[#00f0ff]">{agent.endorsement_count}</p>
@@ -263,13 +359,66 @@ export default async function AgentProfilePage({
 
       {/* Metadata */}
       {agent.metadata && Object.keys(agent.metadata).length > 0 && (
-        <div className="rounded-xl border border-[#1e1e2a] bg-[#111118] p-6">
+        <div className="rounded-xl border border-[#1e1e2a] bg-[#111118] p-6 mb-6">
           <h2 className="text-sm font-semibold text-[#e8e8ed] uppercase tracking-wider mb-4">
             Metadata
           </h2>
           <pre className="rounded-lg bg-[#050508] border border-[#1e1e2a] p-4 text-xs font-mono text-[#6b6b80] overflow-x-auto">
             {JSON.stringify(agent.metadata, null, 2)}
           </pre>
+        </div>
+      )}
+
+      {/* Badge Embed */}
+      {agent.wallet_address && (
+        <div className="rounded-xl border border-[#1e1e2a] bg-[#111118] p-6">
+          <h2 className="text-sm font-semibold text-[#e8e8ed] uppercase tracking-wider mb-4 flex items-center gap-2">
+            <Shield className="size-4 text-[#00f0ff]" />
+            Verification Badge
+          </h2>
+          <p className="text-xs text-[#6b6b80] mb-4">
+            Embed this badge in your README, website, or documentation to show your agent is verified on AgentStamp.
+          </p>
+
+          {/* Badge Preview */}
+          <div className="rounded-lg bg-[#050508] border border-[#1e1e2a] p-6 mb-4 flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`https://agentstamp.org/api/v1/badge/${agent.wallet_address}`}
+              alt={`AgentStamp verified badge for ${agent.name}`}
+              height={28}
+            />
+          </div>
+
+          {/* Embed Snippets */}
+          <div className="space-y-3">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#6b6b80]">Markdown</span>
+              </div>
+              <pre className="rounded-lg bg-[#050508] border border-[#1e1e2a] p-3 text-[11px] font-mono text-[#6b6b80] overflow-x-auto whitespace-pre-wrap break-all">
+{`[![AgentStamp Verified](https://agentstamp.org/api/v1/badge/${agent.wallet_address})](https://agentstamp.org/registry/${agent.id})`}
+              </pre>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#6b6b80]">HTML</span>
+              </div>
+              <pre className="rounded-lg bg-[#050508] border border-[#1e1e2a] p-3 text-[11px] font-mono text-[#6b6b80] overflow-x-auto whitespace-pre-wrap break-all">
+{`<a href="https://agentstamp.org/registry/${agent.id}"><img src="https://agentstamp.org/api/v1/badge/${agent.wallet_address}" alt="AgentStamp Verified" /></a>`}
+              </pre>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#6b6b80]">JSON Badge Data</span>
+              </div>
+              <pre className="rounded-lg bg-[#050508] border border-[#1e1e2a] p-3 text-[11px] font-mono text-[#00f0ff] overflow-x-auto">
+{`GET https://agentstamp.org/api/v1/badge/${agent.wallet_address}/json`}
+              </pre>
+            </div>
+          </div>
         </div>
       )}
     </div>

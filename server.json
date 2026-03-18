@@ -6,11 +6,11 @@
     "url": "https://github.com/vinaybhosle/agentstamp",
     "source": "github"
   },
-  "version": "1.0.0",
+  "version": "2.0.0",
   "remotes": [
     {
       "type": "streamable-http",
-      "url": "https://agentstamp.org/.well-known/mcp.json"
+      "url": "https://agentstamp.org/mcp"
     }
   ]
 }

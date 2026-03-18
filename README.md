@@ -2,33 +2,57 @@
 
 **Stamp your agent into existence.**
 
-A lightweight x402-powered platform combining AI agent identity certification, a public agent registry, and a digital wishing well — all payable via USDC micropayments on Base.
+A lightweight x402-powered platform combining AI agent identity certification, a public agent registry, reputation scores, cross-protocol passports, and a digital wishing well — all payable via USDC micropayments on Base and Solana.
+
+**Live at:** [https://agentstamp.org](https://agentstamp.org)
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/youruser/agentstamp.git
+git clone https://github.com/vinaybhosle/agentstamp.git
 cd agentstamp
 npm install
-# Edit .env with your wallet address
-npm start
+cp .env.example .env   # Edit with your wallet address
+npm start              # Backend at http://localhost:4005
 ```
 
-Server runs at `http://localhost:3402`
+### Web Frontend
+
+```bash
+cd web
+npm install
+npm run dev            # Development at http://localhost:3000
+npm run build && npm start  # Production at http://localhost:4000
+```
 
 ### Seed Demo Data
 
 ```bash
-npm run seed
+npm run seed           # 5 agents, 5 stamps, 10 wishes, 5 endorsements
 ```
 
 ## Architecture
 
 - **Runtime:** Node.js + Express
-- **Database:** SQLite (better-sqlite3)
-- **Payments:** x402 protocol via PayAI facilitator (keyless, no CDP)
+- **Database:** SQLite (better-sqlite3, WAL mode)
+- **Payments:** x402 protocol — USDC on Base + Solana (dual-chain)
 - **Signing:** Ed25519 keypair (auto-generated)
-- **Network:** Base (USDC)
+- **Frontend:** Next.js 16 + Tailwind CSS + shadcn/ui
+- **SDK:** `agentstamp-verify` on npm (Express + Hono middleware)
+- **MCP:** Live MCP server at `/mcp` (Streamable HTTP transport, 9 tools)
+- **HTTPS:** Cloudflare Tunnel
+- **Process Manager:** PM2
+
+### Security
+
+- **Helmet** with HSTS (2-year max-age, includeSubDomains, preload)
+- **x402 fail-closed guard** — if payment middleware fails, paid routes return 503 (not free)
+- **Wallet validation middleware** — mutation requests without wallet address return 401
+- **Rate limiting** — 100 req/min per IP
+- **MCP session bounds** — 1000 max sessions, 30-min idle timeout, 5-min cleanup
+- **Process error handlers** — uncaughtException (graceful shutdown) + unhandledRejection
+- **Input sanitization** — HTML tag stripping, field validation, parameterized SQL queries
+- **File permissions** — Ed25519 keys and .env at mode 0o600
 
 ## API Reference
 
@@ -52,6 +76,7 @@ npm run seed
 | GET | `/api/v1/registry/search` | FREE | Search agents |
 | GET | `/api/v1/registry/browse` | FREE | Browse agents |
 | GET | `/api/v1/registry/agent/:agentId` | FREE | Agent profile |
+| GET | `/api/v1/registry/agent/:agentId/reputation` | FREE | Reputation score (0-100) |
 | GET | `/api/v1/registry/leaderboard` | FREE | Top agents |
 | POST | `/api/v1/registry/heartbeat/:agentId` | FREE | Heartbeat ping |
 
@@ -63,17 +88,60 @@ npm run seed
 | POST | `/api/v1/well/grant/:wishId` | $0.005 | Grant wish |
 | GET | `/api/v1/well/wishes` | FREE | Browse wishes |
 | GET | `/api/v1/well/wish/:wishId` | FREE | Wish detail |
-| GET | `/api/v1/well/trending` | FREE | Trending |
+| GET | `/api/v1/well/trending` | FREE | Trending categories |
 | GET | `/api/v1/well/stats` | FREE | Statistics |
+| GET | `/api/v1/well/insights` | $0.01 | Market insights |
+| GET | `/api/v1/well/insights/preview` | FREE | Insights preview |
+
+### Passport — Cross-Protocol Identity
+
+| Method | Endpoint | Price | Description |
+|--------|----------|-------|-------------|
+| GET | `/api/v1/passport/:walletAddress` | FREE | Full signed passport |
+| GET | `/api/v1/passport/:walletAddress/a2a` | FREE | A2A agent card |
 
 ### Discovery & Health
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/health` | Service health |
-| GET | `/.well-known/mcp.json` | MCP manifest |
+| GET | `/health` | Service health check |
+| GET | `/.well-known/mcp.json` | MCP tool manifest |
 | GET | `/.well-known/agent-card.json` | A2A agent card |
-| GET | `/` | Landing page |
+| GET | `/.well-known/x402.json` | x402 payment manifest |
+| GET | `/.well-known/passport-public-key` | Ed25519 public key |
+| GET | `/llms.txt` | LLM crawler discovery |
+| POST/GET/DELETE | `/mcp` | Live MCP server (Streamable HTTP) |
+
+## MCP Tools
+
+Connect any MCP client to `https://agentstamp.org/mcp`:
+
+| Tool | Description |
+|------|-------------|
+| `search_agents` | Search by query/category |
+| `get_agent` | Full agent profile |
+| `verify_stamp` | Verify certificate |
+| `browse_agents` | Browse with sort/filter |
+| `get_leaderboard` | Top agents + categories |
+| `browse_wishes` | Browse wishes |
+| `get_trending` | Trending wish categories |
+| `get_agent_reputation` | Reputation score breakdown |
+| `get_passport` | Full signed passport |
+
+## SDK — agentstamp-verify
+
+```bash
+npm install agentstamp-verify
+```
+
+```typescript
+import { requireStamp } from 'agentstamp-verify/express';
+
+// Gate your API behind AgentStamp verification
+app.use('/api/*', requireStamp({ minTier: 'bronze', x402: true }));
+```
+
+Also supports Hono middleware and a standalone client. See [npm](https://www.npmjs.com/package/agentstamp-verify) for full docs.
 
 ## Certificate Verification
 
@@ -87,6 +155,21 @@ Each stamp produces an Ed25519-signed certificate. To verify independently:
 ## Environment Variables
 
 See `.env.example` for all configuration options.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `WALLET_ADDRESS` | **Yes** | — | EVM wallet for USDC payments on Base |
+| `SOLANA_WALLET_ADDRESS` | No | — | Solana wallet for USDC payments |
+| `PORT` | No | 4005 | Backend server port |
+| `DB_PATH` | No | ./data/agentstamp.db | SQLite database path |
+| `FACILITATOR_URL` | No | https://facilitator.payai.network | x402 facilitator |
+
+## Port Allocation
+
+| Port | Service |
+|------|---------|
+| 4005 | AgentStamp Backend (Express) |
+| 4000 | AgentStamp Web (Next.js) |
 
 ## License
 

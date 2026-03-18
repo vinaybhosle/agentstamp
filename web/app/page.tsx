@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { Stamp, Database, Sparkles, ArrowRight, Zap, Shield, Globe } from "lucide-react";
+import { Stamp, Database, Sparkles, ArrowRight, Zap, Shield, Globe, CheckCircle2, Code, Crown, Activity, Users, Award, Star } from "lucide-react";
 import type { StampStats, Agent, Wish } from "@/types";
 import { StatsSection } from "./StatsSection";
 
-const API_BASE = process.env.API_URL || "http://localhost:3405";
+const API_BASE = process.env.API_URL || "http://localhost:4005";
 
 async function getStats(): Promise<StampStats | null> {
   try {
@@ -41,6 +41,36 @@ async function getRecentWishes(): Promise<Wish[]> {
     return data.wishes ?? [];
   } catch {
     return [];
+  }
+}
+
+interface PulseEvent {
+  type: string;
+  summary: string;
+  timestamp: string;
+  tier?: string;
+  category?: string;
+  agent_id?: string;
+}
+
+interface PulseData {
+  pulse: PulseEvent[];
+  velocity: {
+    last_hour: { stamps: number; registrations: number; endorsements: number };
+    last_24h: { stamps: number; registrations: number; endorsements: number };
+  };
+}
+
+async function getPulse(): Promise<PulseData | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/trust/pulse?limit=10`, {
+      next: { revalidate: 30 },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -102,11 +132,26 @@ const poweredBy = [
   { name: "USDC", label: "USDC" },
 ];
 
+function getTimeAgo(timestamp: string): string {
+  const now = Date.now();
+  const then = new Date(timestamp).getTime();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return `${Math.floor(diffDay / 7)}w ago`;
+}
+
 export default async function HomePage() {
-  const [stats, recentAgents, recentWishes] = await Promise.all([
+  const [stats, recentAgents, recentWishes, pulse] = await Promise.all([
     getStats(),
     getRecentAgents(),
     getRecentWishes(),
+    getPulse(),
   ]);
 
   return (
@@ -130,11 +175,17 @@ export default async function HomePage() {
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
+              href="/register"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#00ff88] px-7 py-3 text-sm font-bold text-[#050508] transition-all hover:bg-[#00ff88]/90 hover:shadow-[0_0_20px_rgba(0,255,136,0.3)]"
+            >
+              Register Your Agent — Free
+              <ArrowRight className="size-4" />
+            </Link>
+            <Link
               href="/registry"
               className="inline-flex items-center gap-2 rounded-lg bg-[#00f0ff] px-6 py-3 text-sm font-semibold text-[#050508] transition-all hover:bg-[#00f0ff]/90 hover:shadow-[0_0_20px_rgba(0,240,255,0.3)]"
             >
               Explore Registry
-              <ArrowRight className="size-4" />
             </Link>
             <Link
               href="/docs"
@@ -143,6 +194,9 @@ export default async function HomePage() {
               Read the Docs
             </Link>
           </div>
+          <p className="mt-4 text-xs text-[#3a3a4a]">
+            No payment required &middot; 60-second setup &middot; 30-day free registration
+          </p>
         </div>
       </section>
 
@@ -214,6 +268,87 @@ export default async function HomePage() {
           />
         </div>
       </section>
+
+      {/* Live Network Pulse — social proof */}
+      {pulse && pulse.pulse.length > 0 && (
+        <section className="py-20 border-t border-[#1e1e2a]">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold text-[#e8e8ed] flex items-center justify-center gap-3">
+                <Activity className="size-7 text-[#00ff88]" />
+                Network Pulse
+              </h2>
+              <p className="mt-3 text-[#6b6b80]">
+                Real-time activity on AgentStamp. The network is alive.
+              </p>
+            </div>
+
+            {/* Velocity stats */}
+            <div className="grid grid-cols-3 gap-4 mb-10 max-w-2xl mx-auto">
+              <div className="text-center rounded-xl border border-[#1e1e2a] bg-[#111118] p-4">
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <Stamp className="size-4 text-[#00f0ff]" />
+                  <span className="text-2xl font-bold text-[#e8e8ed]">{pulse.velocity.last_24h.stamps}</span>
+                </div>
+                <p className="text-xs text-[#6b6b80]">stamps today</p>
+              </div>
+              <div className="text-center rounded-xl border border-[#1e1e2a] bg-[#111118] p-4">
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <Users className="size-4 text-[#00ff88]" />
+                  <span className="text-2xl font-bold text-[#e8e8ed]">{pulse.velocity.last_24h.registrations}</span>
+                </div>
+                <p className="text-xs text-[#6b6b80]">new agents today</p>
+              </div>
+              <div className="text-center rounded-xl border border-[#1e1e2a] bg-[#111118] p-4">
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <Award className="size-4 text-[#ffaa00]" />
+                  <span className="text-2xl font-bold text-[#e8e8ed]">{pulse.velocity.last_24h.endorsements}</span>
+                </div>
+                <p className="text-xs text-[#6b6b80]">endorsements today</p>
+              </div>
+            </div>
+
+            {/* Activity feed */}
+            <div className="max-w-2xl mx-auto">
+              <div className="space-y-2">
+                {pulse.pulse.slice(0, 8).map((event, i) => {
+                  const eventIcon =
+                    event.type === "stamp_minted" ? { icon: Stamp, color: "#00f0ff" } :
+                    event.type === "agent_registered" ? { icon: Users, color: "#00ff88" } :
+                    event.type === "endorsement_given" ? { icon: Star, color: "#ffaa00" } :
+                    { icon: Sparkles, color: "#c084fc" };
+                  const EventIcon = eventIcon.icon;
+                  const timeAgo = getTimeAgo(event.timestamp);
+
+                  return (
+                    <div
+                      key={`${event.type}-${i}`}
+                      className="flex items-center gap-3 rounded-lg border border-[#1e1e2a] bg-[#111118] px-4 py-3 transition-all hover:border-[#1e1e2a]/80"
+                    >
+                      <div
+                        className="flex-shrink-0 rounded-md p-1.5"
+                        style={{ backgroundColor: `${eventIcon.color}10`, color: eventIcon.color }}
+                      >
+                        <EventIcon className="size-3.5" />
+                      </div>
+                      <p className="text-sm text-[#a8a8b8] flex-1 truncate">{event.summary}</p>
+                      <span className="text-[10px] text-[#3a3a4a] flex-shrink-0 font-mono">{timeAgo}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="text-center mt-6">
+                <Link
+                  href="/register"
+                  className="text-sm text-[#00ff88] hover:text-[#00ff88]/80 transition-colors font-medium"
+                >
+                  Join the network &rarr;
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* How It Works */}
       <section className="py-20">
@@ -338,6 +473,193 @@ export default async function HomePage() {
               )}
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Why AgentStamp */}
+      <section className="py-20 border-t border-[#1e1e2a]">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-[#e8e8ed]">Why AgentStamp?</h2>
+            <p className="mt-3 text-[#6b6b80]">Everything your agent needs to be trusted.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              {
+                icon: Shield,
+                title: "Cryptographic Identity",
+                desc: "Ed25519-signed certificates prove your agent exists. Verifiable by anyone, tamper-proof forever.",
+                color: "#00f0ff",
+              },
+              {
+                icon: Crown,
+                title: "Reputation Score",
+                desc: "0-100 reputation score based on endorsements, uptime, age, and tier. Build trust over time.",
+                color: "#ffaa00",
+              },
+              {
+                icon: Code,
+                title: "Developer-First",
+                desc: "REST API, MCP tools, TypeScript SDK, webhooks, and embeddable badges. Integrate in minutes.",
+                color: "#00ff88",
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className="rounded-xl border border-[#1e1e2a] bg-[#111118] p-6"
+              >
+                <div
+                  className="mb-4 inline-flex rounded-lg p-2.5"
+                  style={{ backgroundColor: `${item.color}10`, color: item.color }}
+                >
+                  <item.icon className="size-5" />
+                </div>
+                <h3 className="text-lg font-semibold text-[#e8e8ed] mb-2">{item.title}</h3>
+                <p className="text-sm text-[#6b6b80] leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Quick Start Code Snippet */}
+      <section className="py-20 border-t border-[#1e1e2a]">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-[#e8e8ed]">Integrate in 3 Lines</h2>
+            <p className="mt-3 text-[#6b6b80]">
+              Drop-in SDK to verify agents before they access your API.
+            </p>
+          </div>
+          <div className="rounded-xl border border-[#1e1e2a] bg-[#0a0a12] overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#1e1e2a]">
+              <div className="flex gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-[#ff5f56]" />
+                <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
+                <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
+              </div>
+              <span className="text-[10px] text-[#6b6b80] ml-2 font-mono">server.js</span>
+            </div>
+            <pre className="p-5 text-sm font-mono leading-relaxed overflow-x-auto">
+              <code>
+                <span className="text-[#6b6b80]">{"// npm install agentstamp-verify"}</span>{"\n"}
+                <span className="text-[#c678dd]">import</span>{" "}
+                <span className="text-[#e8e8ed]">{"{ "}</span>
+                <span className="text-[#00f0ff]">requireStamp</span>
+                <span className="text-[#e8e8ed]">{" }"}</span>{" "}
+                <span className="text-[#c678dd]">from</span>{" "}
+                <span className="text-[#98c379]">{`'agentstamp-verify/express'`}</span>
+                <span className="text-[#e8e8ed]">;</span>{"\n\n"}
+                <span className="text-[#6b6b80]">{"// Require verified agents on your API"}</span>{"\n"}
+                <span className="text-[#e8e8ed]">app.</span>
+                <span className="text-[#61afef]">use</span>
+                <span className="text-[#e8e8ed]">(</span>
+                <span className="text-[#98c379]">{`'/api'`}</span>
+                <span className="text-[#e8e8ed]">, </span>
+                <span className="text-[#00f0ff]">requireStamp</span>
+                <span className="text-[#e8e8ed]">({"{ "}</span>
+                <span className="text-[#e06c75]">minTier</span>
+                <span className="text-[#e8e8ed]">: </span>
+                <span className="text-[#98c379]">{`'bronze'`}</span>
+                <span className="text-[#e8e8ed]">{" }"}));</span>
+              </code>
+            </pre>
+          </div>
+          <div className="mt-6 flex items-center justify-center gap-6 text-xs text-[#6b6b80]">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="size-3 text-[#00ff88]" />
+              Express &amp; Hono adapters
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="size-3 text-[#00ff88]" />
+              x402 compatible
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="size-3 text-[#00ff88]" />
+              Fail-open mode
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Embed Your Badge */}
+      <section className="py-20 border-t border-[#1e1e2a]">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-[#e8e8ed]">Show You&apos;re Verified</h2>
+            <p className="mt-3 text-[#6b6b80]">
+              Embed a live verification badge in your README, docs, or website.
+            </p>
+          </div>
+          <div className="rounded-xl border border-[#1e1e2a] bg-[#0a0a12] overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#1e1e2a]">
+              <div className="flex gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-[#ff5f56]" />
+                <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
+                <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
+              </div>
+              <span className="text-[10px] text-[#6b6b80] ml-2 font-mono">README.md</span>
+            </div>
+            <pre className="p-5 text-sm font-mono leading-relaxed overflow-x-auto">
+              <code>
+                <span className="text-[#6b6b80]">{"<!-- Add to your README -->"}</span>{"\n"}
+                <span className="text-[#c678dd]">[![</span>
+                <span className="text-[#e8e8ed]">AgentStamp Verified</span>
+                <span className="text-[#c678dd]">]</span>
+                <span className="text-[#98c379]">(https://agentstamp.org/api/v1/badge/YOUR_WALLET)</span>{"\n"}
+                <span className="text-[#c678dd]">(</span>
+                <span className="text-[#98c379]">https://agentstamp.org/verify</span>
+                <span className="text-[#c678dd]">)</span>
+              </code>
+            </pre>
+          </div>
+          <div className="mt-6 flex items-center justify-center gap-6 text-xs text-[#6b6b80]">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="size-3 text-[#00ff88]" />
+              Live status — always current
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="size-3 text-[#00ff88]" />
+              Shows tier + reputation
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="size-3 text-[#00ff88]" />
+              Works on GitHub, GitLab, anywhere
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Bottom CTA */}
+      <section className="py-20 border-t border-[#1e1e2a]">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl font-bold text-[#e8e8ed] mb-4">
+            Ready to stamp your agent?
+          </h2>
+          <p className="text-[#6b6b80] mb-8 max-w-lg mx-auto">
+            Join the verifiable agent economy. Register free, earn a reputation, and let the world
+            trust your agent.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/register"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#00ff88] px-8 py-3.5 text-sm font-bold text-[#050508] transition-all hover:bg-[#00ff88]/90 hover:shadow-[0_0_20px_rgba(0,255,136,0.3)]"
+            >
+              Register Your Agent — Free
+              <ArrowRight className="size-4" />
+            </Link>
+            <a
+              href="https://www.npmjs.com/package/agentstamp-verify"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg border border-[#1e1e2a] px-6 py-3 text-sm font-mono text-[#e8e8ed] transition-all hover:border-[#00f0ff]/50 hover:text-[#00f0ff]"
+            >
+              npm i agentstamp-verify
+            </a>
+          </div>
+          <p className="mt-4 text-xs text-[#3a3a4a]">
+            No credit card &middot; No API key &middot; No sign-up &middot; SDK on npm
+          </p>
         </div>
       </section>
 

@@ -9,3 +9,18 @@ keys/
 *.db-shm
 *.db-wal
 logs/
+.claude/
+
+# ═══ Security additions (auto-generated) ═══
+.env.production
+*.pem
+*.key
+*.p12
+*.pfx
+private_key*
+ed25519*
+*.sqlite
+*.sqlite3
+*.db-journal
+.security-backup-*
+security-audit-report-*.txt
