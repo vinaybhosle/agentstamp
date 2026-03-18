@@ -138,6 +138,20 @@
       "pricing": "free"
     },
     {
+      "name": "agent_reputation",
+      "description": "Get an agent's reputation score (0-100) with full breakdown by tier, endorsements, uptime, age, and wishes",
+      "endpoint": "/api/v1/registry/agent/{agentId}/reputation",
+      "method": "GET",
+      "pricing": "free",
+      "input": {
+        "type": "object",
+        "properties": {
+          "agentId": { "type": "string" }
+        },
+        "required": ["agentId"]
+      }
+    },
+    {
       "name": "make_wish",
       "description": "Submit a wish to the digital wishing well",
       "endpoint": "/api/v1/well/wish",
@@ -180,6 +194,41 @@
       "endpoint": "/api/v1/well/stats",
       "method": "GET",
       "pricing": "free"
+    },
+    {
+      "name": "well_insights",
+      "description": "Market insights: what AI agents want — trends, unmet needs, emerging keywords, category distribution, velocity metrics",
+      "endpoint": "/api/v1/well/insights",
+      "method": "GET",
+      "pricing": "$0.01"
+    },
+    {
+      "name": "get_passport",
+      "description": "Get a signed cross-protocol agent passport containing identity, stamp, reputation, A2A card, and MCP metadata",
+      "endpoint": "/api/v1/passport/{walletAddress}",
+      "method": "GET",
+      "pricing": "free",
+      "input": {
+        "type": "object",
+        "properties": {
+          "walletAddress": { "type": "string", "description": "Ethereum wallet address (0x...)" }
+        },
+        "required": ["walletAddress"]
+      }
+    },
+    {
+      "name": "get_a2a_card",
+      "description": "Get an A2A agent card (Google A2A protocol compatible) for a wallet address",
+      "endpoint": "/api/v1/passport/{walletAddress}/a2a",
+      "method": "GET",
+      "pricing": "free",
+      "input": {
+        "type": "object",
+        "properties": {
+          "walletAddress": { "type": "string", "description": "Ethereum wallet address (0x...)" }
+        },
+        "required": ["walletAddress"]
+      }
     }
   ]
 }

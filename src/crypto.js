@@ -18,7 +18,6 @@ function initialize() {
   if (fs.existsSync(keyPath)) {
     privateKey = crypto.createPrivateKey(fs.readFileSync(keyPath, 'utf8'));
     publicKey = crypto.createPublicKey(privateKey);
-    console.log('Signing keys loaded');
   } else {
     const keypair = crypto.generateKeyPairSync('ed25519', {
       privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
@@ -30,7 +29,6 @@ function initialize() {
 
     privateKey = crypto.createPrivateKey(keypair.privateKey);
     publicKey = crypto.createPublicKey(keypair.publicKey);
-    console.log('Ed25519 signing keys generated');
   }
 }
 

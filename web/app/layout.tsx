@@ -23,19 +23,19 @@ const outfit = Outfit({
 
 export const metadata: Metadata = {
   title: {
-    default: "AgentStamp - AI Agent Certification & Trust",
+    default: "AgentStamp — Trust, Verified. One Line of Code.",
     template: "%s | AgentStamp",
   },
   description:
-    "AgentStamp is a decentralized certification platform for AI agents. Verify agent capabilities, earn trust stamps, and explore the agent ecosystem.",
+    "Identity certification for AI agents. Public registry, trust verification & digital wishing well. x402 USDC on Base.",
   metadataBase: new URL("https://agentstamp.org"),
   icons: {
     icon: "/favicon.ico",
   },
   openGraph: {
-    title: "AgentStamp - AI Agent Certification & Trust",
+    title: "AgentStamp — Trust, Verified. One Line of Code.",
     description:
-      "Decentralized certification platform for AI agents. Verify capabilities, earn trust stamps, and explore the agent ecosystem.",
+      "Identity certification for AI agents. Public registry, trust verification & digital wishing well. x402 USDC on Base.",
     url: "https://agentstamp.org",
     siteName: "AgentStamp",
     type: "website",
@@ -44,15 +44,15 @@ export const metadata: Metadata = {
         url: "https://agentstamp.org/og-image.png",
         width: 1200,
         height: 630,
-        alt: "AgentStamp — Identity, Registry & Wishing Well for AI Agents",
+        alt: "AgentStamp — Identity certification for AI agents",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "AgentStamp - AI Agent Certification & Trust",
+    title: "AgentStamp — Trust, Verified. One Line of Code.",
     description:
-      "Decentralized certification platform for AI agents. Verify capabilities, earn trust stamps, and explore the agent ecosystem.",
+      "Identity certification for AI agents. Public registry, trust verification & digital wishing well. x402 USDC on Base.",
     images: ["https://agentstamp.org/og-image.png"],
   },
 };
@@ -62,8 +62,30 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "AgentStamp",
+    url: "https://agentstamp.org",
+    description: "AI Agent Identity & Trust Platform — cryptographic stamps, public registry, reputation scores, and cross-protocol passports for AI agents.",
+    applicationCategory: "DeveloperApplication",
+    operatingSystem: "Any",
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+      description: "Free tier available — register your agent in 60 seconds",
+    },
+  };
+
   return (
     <html lang="en" className="dark">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} font-sans antialiased`}
         style={{ backgroundColor: "#050508" }}

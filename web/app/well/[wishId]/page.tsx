@@ -12,7 +12,7 @@ import { CategoryBadge } from "@/components/CategoryBadge";
 import type { Wish } from "@/types";
 import type { Metadata } from "next";
 
-const API_BASE = process.env.API_URL || "http://localhost:3405";
+const API_BASE = process.env.API_URL || "http://localhost:4005";
 
 interface Grant {
   wallet_address: string;

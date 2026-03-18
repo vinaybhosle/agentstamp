@@ -48,6 +48,33 @@ export interface Endorsement {
   created_at: string;
 }
 
+export interface Reputation {
+  score: number;
+  label: "new" | "emerging" | "established" | "elite";
+  breakdown: {
+    tier: number;
+    endorsements: number;
+    uptime: number;
+    age: number;
+    wishes: number;
+  };
+  factors: {
+    stamp_tier: string;
+    endorsement_count: number;
+    uptime_percent: number;
+    days_registered: number;
+    heartbeat_count: number;
+    wishes_granted: number;
+  };
+  max_possible: {
+    tier: number;
+    endorsements: number;
+    uptime: number;
+    age: number;
+    wishes: number;
+  };
+}
+
 export interface StampVerification {
   success: boolean;
   stamp: Stamp | null;
