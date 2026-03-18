@@ -20,7 +20,7 @@ jobs:
           cache: 'npm'
       
       - name: Install dependencies
-        run: npm ci
+        run: npm install --ignore-scripts
       
       - name: npm audit
         run: npm audit --audit-level=high
@@ -41,7 +41,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - run: npm ci
+      - run: npm install --ignore-scripts
 
       - name: Unit tests
         run: npx vitest run --exclude 'tests/e2e/**'
