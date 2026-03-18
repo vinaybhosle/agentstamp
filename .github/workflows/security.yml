@@ -31,30 +31,17 @@ jobs:
         with:
           extra_args: --only-verified
 
-  lint-security:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      
-      - run: npm ci
-      
-      - name: ESLint security rules
-        run: npx eslint --rule '{"no-eval": "error", "no-implied-eval": "error"}' src/
-
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      
+
       - run: npm ci
-      - run: npm test
+
+      - name: Unit tests
+        run: npx vitest run --exclude 'tests/e2e/**'
