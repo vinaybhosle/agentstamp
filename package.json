@@ -6,7 +6,15 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "seed": "node scripts/seed-demo.js"
+    "seed": "node scripts/seed-demo.js",
+    "test": "vitest run",
+    "test:e2e": "vitest run tests/e2e --reporter=verbose",
+    "test:e2e:ui": "vitest --ui tests/e2e",
+    "test:all": "vitest run --reporter=verbose",
+    "db:check": "node scripts/db-quality-check.js",
+    "db:check:summary": "node scripts/db-quality-check.js --summary",
+    "db:fix": "node scripts/db-quality-check.js --fix --summary",
+    "db:cleanup-e2e": "node scripts/cleanup-e2e.js"
   },
   "keywords": [
     "x402",
@@ -20,6 +28,7 @@
   "author": "Vinay Bhosle",
   "license": "MIT",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@x402/core": "^2.6.0",
     "@x402/evm": "^2.6.0",
     "@x402/express": "^2.6.0",
@@ -33,6 +42,9 @@
     "express-rate-limit": "^7.0.0",
     "helmet": "^7.0.0",
     "nanoid": "^3.3.0",
-    "x402-express": "latest"
+    "x402-express": "1.1.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.0"
   }
 }
