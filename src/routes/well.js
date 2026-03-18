@@ -3,6 +3,8 @@ const router = express.Router();
 const { getDb } = require('../database');
 const { generateWishId, generateTransactionId } = require('../utils/generateId');
 const { validateWish } = require('../utils/validators');
+const { generateInsights } = require('../insights');
+const { appendEvent } = require('../eventLog');
 
 // POST /api/v1/well/wish
 router.post('/wish', (req, res) => {
@@ -12,7 +14,7 @@ router.post('/wish', (req, res) => {
       return res.status(400).json({ success: false, error: validation.error });
     }
 
-    const walletAddress = req.headers['x-wallet-address'] || req.body.wallet_address || '0x0000000000000000000000000000000000000000';
+    const walletAddress = req.headers['x-wallet-address'] || req.body.wallet_address;
     const { wish_text, category, agent_id } = validation.data;
 
     const db = getDb();
@@ -34,6 +36,8 @@ router.post('/wish', (req, res) => {
       INSERT INTO transactions (id, endpoint, wallet_address, amount, action, reference_id)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(generateTransactionId(), '/api/v1/well/wish', walletAddress, '$0.001', 'wish_create', wishId);
+
+    appendEvent('wish_created', { wish_id: wishId, wallet_address: walletAddress, category });
 
     res.status(201).json({
       success: true,
@@ -59,7 +63,7 @@ router.post('/grant/:wishId', (req, res) => {
       return res.status(404).json({ success: false, error: 'Wish not found' });
     }
 
-    const granterWallet = req.headers['x-wallet-address'] || req.body.wallet_address || '0x0000000000000000000000000000000000000000';
+    const granterWallet = req.headers['x-wallet-address'] || req.body.wallet_address;
     const now = new Date().toISOString();
 
     db.prepare(`
@@ -71,7 +75,13 @@ router.post('/grant/:wishId', (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(generateTransactionId(), '/api/v1/well/grant', granterWallet, '$0.005', 'wish_grant', req.params.wishId);
 
-    res.json({ success: true, message: 'Wish granted', wish_id: req.params.wishId, grant_count: wish.grant_count + 1 });
+    appendEvent('wish_granted', { wish_id: req.params.wishId, granted_by: granterWallet });
+
+    // Dispatch webhook to wish owner
+    try { require('../webhookDispatcher').dispatch(wish.wallet_address, 'wish_granted', { wish_id: req.params.wishId, granter: granterWallet }); } catch (e) { /* best-effort */ }
+
+    const updated = db.prepare('SELECT grant_count FROM wishes WHERE id = ?').get(req.params.wishId);
+    res.json({ success: true, message: 'Wish granted', wish_id: req.params.wishId, grant_count: updated.grant_count });
   } catch (err) {
     console.error('Well grant error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
@@ -175,6 +185,42 @@ router.get('/stats', (req, res) => {
     });
   } catch (err) {
     console.error('Well stats error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// GET /api/v1/well/insights (paid via x402 — full market intelligence)
+router.get('/insights', (req, res) => {
+  try {
+    const insights = generateInsights();
+    res.json({ success: true, ...insights });
+  } catch (err) {
+    console.error('Well insights error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// GET /api/v1/well/insights/preview (free — summary for web dashboard)
+router.get('/insights/preview', (req, res) => {
+  try {
+    const insights = generateInsights();
+    // Return summary + category data (no keywords/unmet needs — those are paid)
+    res.json({
+      success: true,
+      generated_at: insights.generated_at,
+      summary: insights.summary,
+      growth: insights.growth,
+      velocity: insights.velocity,
+      category_distribution: insights.category_distribution,
+      // Teaser: truncated unmet needs and keywords
+      unmet_needs: insights.unmet_needs.slice(0, 3).map(w => ({
+        ...w,
+        wish_text: w.wish_text.slice(0, 60) + (w.wish_text.length > 60 ? '...' : ''),
+      })),
+      emerging_keywords: insights.emerging_keywords.slice(0, 5),
+    });
+  } catch (err) {
+    console.error('Well insights preview error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });

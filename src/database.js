@@ -96,9 +96,127 @@ function initialize() {
 
     CREATE INDEX IF NOT EXISTS idx_transactions_wallet ON transactions(wallet_address);
     CREATE INDEX IF NOT EXISTS idx_transactions_action ON transactions(action);
+
+    CREATE TABLE IF NOT EXISTS heartbeat_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_id TEXT NOT NULL REFERENCES agents(id),
+      recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_heartbeat_agent ON heartbeat_log(agent_id);
+
+    CREATE TABLE IF NOT EXISTS free_stamp_cooldown (
+      wallet_address TEXT PRIMARY KEY,
+      last_free_mint TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS free_registration_cooldown (
+      wallet_address TEXT PRIMARY KEY,
+      last_free_registration TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS webhooks (
+      id TEXT PRIMARY KEY,
+      wallet_address TEXT NOT NULL,
+      url TEXT NOT NULL,
+      events TEXT NOT NULL,
+      secret TEXT NOT NULL,
+      active INTEGER DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(wallet_address, url)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_webhooks_wallet ON webhooks(wallet_address);
+
+    CREATE TABLE IF NOT EXISTS api_hits (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      method TEXT NOT NULL,
+      path TEXT NOT NULL,
+      status_code INTEGER,
+      response_time_ms INTEGER,
+      ip_hash TEXT,
+      user_agent TEXT,
+      wallet_address TEXT,
+      is_bot INTEGER DEFAULT 0,
+      referrer TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_api_hits_created ON api_hits(created_at);
+    CREATE INDEX IF NOT EXISTS idx_api_hits_path ON api_hits(path);
+    CREATE INDEX IF NOT EXISTS idx_api_hits_ip ON api_hits(ip_hash);
+
+    CREATE TABLE IF NOT EXISTS wallet_links (
+      primary_wallet TEXT NOT NULL,
+      linked_wallet TEXT NOT NULL UNIQUE,
+      chain_hint TEXT,
+      linked_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (primary_wallet, linked_wallet)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_wallet_links_primary ON wallet_links(primary_wallet);
+    CREATE INDEX IF NOT EXISTS idx_wallet_links_linked ON wallet_links(linked_wallet);
+
+    CREATE TABLE IF NOT EXISTS stamp_events (
+      id TEXT PRIMARY KEY,
+      stamp_id TEXT,
+      agent_id TEXT,
+      wallet_address TEXT NOT NULL,
+      action TEXT NOT NULL,
+      outcome TEXT NOT NULL,
+      gate_reason TEXT,
+      endpoint TEXT,
+      metadata TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_stamp_events_wallet ON stamp_events(wallet_address);
+    CREATE INDEX IF NOT EXISTS idx_stamp_events_stamp ON stamp_events(stamp_id);
+    CREATE INDEX IF NOT EXISTS idx_stamp_events_outcome ON stamp_events(outcome);
+    CREATE INDEX IF NOT EXISTS idx_stamp_events_created ON stamp_events(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS event_log (
+      id TEXT PRIMARY KEY,
+      event_type TEXT NOT NULL,
+      stamp_id TEXT,
+      agent_id TEXT,
+      wallet_address TEXT,
+      payload TEXT NOT NULL,
+      prev_hash TEXT,
+      event_hash TEXT,
+      signature TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_event_log_type ON event_log(event_type);
+    CREATE INDEX IF NOT EXISTS idx_event_log_stamp ON event_log(stamp_id);
+    CREATE INDEX IF NOT EXISTS idx_event_log_agent ON event_log(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_event_log_wallet ON event_log(wallet_address);
+    CREATE INDEX IF NOT EXISTS idx_event_log_created ON event_log(created_at DESC);
   `);
 
-  console.log('Database initialized');
+  // Add heartbeat_count column if it doesn't exist (migration-safe)
+  try {
+    db.exec('ALTER TABLE agents ADD COLUMN heartbeat_count INTEGER DEFAULT 0');
+  } catch (e) {
+    // Column already exists — safe to ignore
+  }
+
+  // Add tombstone columns for stamp lifecycle closure (migration-safe)
+  try {
+    db.exec('ALTER TABLE stamps ADD COLUMN outcome TEXT DEFAULT NULL');
+  } catch (e) {
+    // Column already exists — safe to ignore
+  }
+  try {
+    db.exec('ALTER TABLE stamps ADD COLUMN tombstoned_at TEXT DEFAULT NULL');
+  } catch (e) {
+    // Column already exists — safe to ignore
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_stamps_outcome ON stamps(outcome)');
+
   return db;
 }
 
@@ -109,11 +227,85 @@ function getDb() {
   return db;
 }
 
+/**
+ * Resolve a wallet address to its primary wallet.
+ * If the wallet is a secondary (linked) wallet, returns the primary.
+ * If not linked, returns the input unchanged.
+ */
+function resolvePrimaryWallet(walletAddress) {
+  const d = getDb();
+  const link = d.prepare(
+    'SELECT primary_wallet FROM wallet_links WHERE linked_wallet = ?'
+  ).get(walletAddress);
+  return link ? link.primary_wallet : walletAddress;
+}
+
+/**
+ * Get all wallets linked to a primary wallet.
+ * Resolves input first in case it's a secondary wallet.
+ */
+function getAllLinkedWallets(walletAddress) {
+  const d = getDb();
+  const primary = resolvePrimaryWallet(walletAddress);
+  const links = d.prepare(
+    'SELECT linked_wallet, chain_hint, linked_at FROM wallet_links WHERE primary_wallet = ?'
+  ).all(primary);
+  return {
+    primary,
+    linked: links,
+    all: [primary, ...links.map(l => l.linked_wallet)],
+  };
+}
+
 function cleanupExpired() {
   const now = new Date().toISOString();
   const d = getDb();
+
+  // Dispatch stamp_expiring webhooks for stamps expiring within 24 hours
+  try {
+    const { dispatch } = require('./webhookDispatcher');
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const expiringSoon = d.prepare(
+      "SELECT * FROM stamps WHERE expires_at > ? AND expires_at <= ? AND revoked = 0"
+    ).all(now, tomorrow);
+    for (const stamp of expiringSoon) {
+      dispatch(stamp.wallet_address, 'stamp_expiring', {
+        stamp_id: stamp.id,
+        tier: stamp.tier,
+        expires_at: stamp.expires_at,
+        renew_url: `https://agentstamp.org/api/v1/stamp/mint/${stamp.tier}`,
+      });
+    }
+  } catch (e) { /* webhook dispatch is best-effort */ }
+
+  // Query rows that will be affected BEFORE the updates
+  const expiringStamps = d.prepare(
+    'SELECT id, wallet_address FROM stamps WHERE expires_at < ? AND revoked = 0'
+  ).all(now);
+  const expiringAgents = d.prepare(
+    "SELECT id, wallet_address FROM agents WHERE expires_at < ? AND status = 'active'"
+  ).all(now);
+
   d.prepare("UPDATE agents SET status = 'expired' WHERE expires_at < ? AND status = 'active'").run(now);
-  d.prepare("UPDATE stamps SET revoked = 1 WHERE expires_at < ? AND revoked = 0").run(now);
+
+  // Tombstone expired stamps without an existing outcome as 'timeout'
+  d.prepare(
+    "UPDATE stamps SET outcome = 'timeout', tombstoned_at = datetime('now'), revoked = 1 WHERE expires_at < ? AND revoked = 0 AND outcome IS NULL"
+  ).run(now);
+
+  // Revoke expired stamps that already have an outcome (preserve their outcome)
+  d.prepare(
+    "UPDATE stamps SET revoked = 1 WHERE expires_at < ? AND revoked = 0 AND outcome IS NOT NULL"
+  ).run(now);
+
+  // Log expiration events (lazy require to avoid circular dependency)
+  const { appendEvent } = require('./eventLog');
+  for (const s of expiringStamps) {
+    appendEvent('stamp_revoked', { stamp_id: s.id, wallet_address: s.wallet_address });
+  }
+  for (const a of expiringAgents) {
+    appendEvent('agent_expired', { agent_id: a.id, wallet_address: a.wallet_address });
+  }
 }
 
-module.exports = { initialize, getDb, cleanupExpired };
+module.exports = { initialize, getDb, cleanupExpired, resolvePrimaryWallet, getAllLinkedWallets };
