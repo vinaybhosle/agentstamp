@@ -102,9 +102,9 @@ const pricingRows = [
 const platformStats = [
   { value: "50+", label: "API Endpoints" },
   { value: "22", label: "MCP Tools" },
-  { value: "157", label: "Countries Covered" },
-  { value: "7", label: "Carriers Integrated" },
+  { value: "4", label: "Stamp Tiers" },
   { value: "2", label: "Chains (Base + Solana)" },
+  { value: "3", label: "SDKs (npm, PyPI, MCP)" },
 ];
 
 const techStack = [
