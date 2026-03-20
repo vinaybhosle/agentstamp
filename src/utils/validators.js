@@ -4,7 +4,12 @@ const STAMP_TIERS = ['bronze', 'silver', 'gold'];
 
 function sanitize(str) {
   if (typeof str !== 'string') return '';
-  return str.replace(/<[^>]*>/g, '').trim();
+  return str
+    .replace(/<[^>]*>/g, '')           // Strip HTML tags
+    .replace(/&[a-z]+;/gi, '')         // Strip HTML entities
+    .replace(/javascript\s*:/gi, '')   // Strip javascript: URIs
+    .replace(/on\w+\s*=/gi, '')        // Strip event handlers
+    .trim();
 }
 
 function validateWalletAddress(address) {
@@ -34,7 +39,7 @@ function validateUrl(url) {
   if (!url) return '';
   try {
     const parsed = new URL(url);
-    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return url;
+    if (parsed.protocol === 'https:') return url;
     return '';
   } catch {
     return '';
@@ -175,8 +180,8 @@ function validateDelegation(body) {
     if (typeof body.reason !== 'string') {
       return { valid: false, error: 'reason must be a string' };
     }
-    // Sanitize reason to strip HTML
-    body.reason = sanitize(body.reason);
+    // Don't mutate input - sanitize at the caller site in trust.js
+    // Just validate the length of the raw reason
     if (body.reason.length > 500) {
       return { valid: false, error: 'reason must be under 500 characters' };
     }

@@ -19,6 +19,19 @@ async function dispatch(walletAddress, event, payload) {
     });
 
     for (const hook of hooks) {
+      // SSRF re-validation: only allow HTTPS to public hosts
+      try {
+        const parsed = new URL(hook.url);
+        if (parsed.protocol !== 'https:') continue;
+        const h = parsed.hostname.toLowerCase();
+        if (h === 'localhost' || h === '127.0.0.1' || h === '::1' ||
+            h === '0.0.0.0' || h.endsWith('.local') || h.endsWith('.internal') ||
+            h.startsWith('10.') || h.startsWith('192.168.') ||
+            /^172\.(1[6-9]|2\d|3[01])\./.test(h) || h.startsWith('169.254.')) {
+          continue;
+        }
+      } catch { continue; }
+
       const body = JSON.stringify({
         event,
         payload,

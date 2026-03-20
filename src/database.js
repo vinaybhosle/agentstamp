@@ -336,6 +336,22 @@ function cleanupExpired() {
   }
 
   // Reputation monitoring is handled by heartbeat/endorsement handlers — not here.
+
+  // Prune old heartbeat log entries (keep 90 days)
+  try {
+    const pruned = db.prepare("DELETE FROM heartbeat_log WHERE recorded_at < datetime('now', '-90 days')").run();
+    if (pruned.changes > 0) {
+      console.log(`Pruned ${pruned.changes} heartbeat_log entries older than 90 days`);
+    }
+  } catch (e) { /* best-effort */ }
+
+  // Prune old blind tokens (keep 30 days)
+  try {
+    const prunedTokens = db.prepare("DELETE FROM blind_tokens WHERE created_at < datetime('now', '-30 days')").run();
+    if (prunedTokens.changes > 0) {
+      console.log(`Pruned ${prunedTokens.changes} expired blind tokens`);
+    }
+  } catch (e) { /* best-effort */ }
 }
 
 module.exports = { initialize, getDb, cleanupExpired, resolvePrimaryWallet, getAllLinkedWallets };

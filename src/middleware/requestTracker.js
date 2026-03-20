@@ -62,7 +62,10 @@ function requestTracker(getDb) {
         const elapsed = Date.now() - startTime;
         const ip = req.ip || req.connection?.remoteAddress || '';
         const ua = (req.headers['user-agent'] || '').slice(0, 300);
-        const wallet = req.headers['x-wallet-address'] || null;
+        const rawWallet = req.headers['x-wallet-address'] || null;
+        const wallet = rawWallet && /^(0x[a-fA-F0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/.test(rawWallet)
+          ? rawWallet
+          : null;
         const ref = (req.headers['referer'] || req.headers['referrer'] || '').slice(0, 500);
 
         insertStmt.run(

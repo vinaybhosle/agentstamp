@@ -478,7 +478,8 @@ router.get('/verify-blind/:blindToken', (req, res) => {
     }
 
     // Log blind verification event (internal audit — wallet IS logged in event_log)
-    appendEvent('blind_verified', { wallet_address: wallet, token: req.params.blindToken });
+    const tokenHash = crypto.createHash('sha256').update(req.params.blindToken).digest('hex').slice(0, 16);
+    appendEvent('blind_verified', { wallet_address: wallet, token_hash: tokenHash });
 
     // Return stripped response — NO wallet, NO exact score, NO stamp_id
     res.json({
