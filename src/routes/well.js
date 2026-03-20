@@ -74,6 +74,14 @@ router.post('/grant/:wishId', (req, res) => {
       }
     }
 
+    // Check if this wallet already granted this wish
+    const existingGrant = db.prepare(
+      "SELECT id FROM transactions WHERE wallet_address = ? AND type = 'wish_grant' AND metadata LIKE ?"
+    ).get(granterWallet, `%${req.params.wishId}%`);
+    if (existingGrant) {
+      return res.status(409).json({ success: false, error: 'You have already granted this wish' });
+    }
+
     const now = new Date().toISOString();
 
     db.prepare(`

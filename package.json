@@ -41,8 +41,7 @@
     "express": "^4.18.0",
     "express-rate-limit": "^7.0.0",
     "helmet": "^7.0.0",
-    "nanoid": "^3.3.0",
-    "x402-express": "1.1.0"
+    "nanoid": "^3.3.0"
   },
   "devDependencies": {
     "vitest": "^4.1.0"

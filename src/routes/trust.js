@@ -136,17 +136,23 @@ router.get('/check/:walletAddress', (req, res) => {
 router.get('/compare', (req, res) => {
   try {
     const walletsParam = req.query.wallets || '';
-    const wallets = walletsParam.split(',').map(w => w.trim()).filter(Boolean).slice(0, 5);
+    const walletList = walletsParam.split(',').map(w => w.trim()).filter(Boolean).slice(0, 5);
 
-    if (wallets.length < 2) {
+    if (walletList.length < 2) {
       return res.status(400).json({
         success: false,
         error: 'Provide at least 2 wallet addresses: ?wallets=0x...,0x...',
       });
     }
 
+    const { validateWalletAddress } = require('../utils/validators');
+    const invalidWallet = walletList.find(w => !validateWalletAddress(w.trim()).valid);
+    if (invalidWallet) {
+      return res.status(400).json({ success: false, error: `Invalid wallet address: ${invalidWallet}` });
+    }
+
     const db = getDb();
-    const results = wallets.map(inputWallet => {
+    const results = walletList.map(inputWallet => {
       // Resolve linked wallets for comparison
       const resolved = resolvePrimaryWallet(inputWallet);
       const walletSet = getAllLinkedWallets(resolved);
@@ -435,8 +441,11 @@ router.post('/delegate', (req, res) => {
       return res.status(409).json({ success: false, error: 'Delegation already exists' });
     }
 
-    const weight = req.body.weight !== undefined ? parseFloat(req.body.weight) : 1.0;
-    const reason = req.body.reason || null;
+    const weight = req.body.weight !== undefined
+      ? Math.round(parseFloat(req.body.weight) * 100) / 100
+      : 1.0;
+    const { sanitize } = require('../utils/validators');
+    const reason = req.body.reason ? sanitize(req.body.reason) : null;
     const expiresAt = new Date(Date.now() + DELEGATION_MAX_DAYS * 24 * 60 * 60 * 1000).toISOString();
     const delegationId = generateDelegationId();
 
@@ -508,6 +517,12 @@ router.delete('/delegate/:delegateeWallet', (req, res) => {
 // GET /api/v1/trust/delegations/:wallet — View incoming and outgoing delegations
 router.get('/delegations/:wallet', (req, res) => {
   try {
+    const { validateWalletAddress } = require('../utils/validators');
+    const walletCheck = validateWalletAddress(req.params.wallet);
+    if (!walletCheck.valid) {
+      return res.status(400).json({ success: false, error: 'Invalid wallet address' });
+    }
+
     const db = getDb();
     const wallet = resolvePrimaryWallet(req.params.wallet);
 

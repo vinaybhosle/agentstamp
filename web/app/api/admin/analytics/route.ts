@@ -30,9 +30,8 @@ export async function GET(request: NextRequest) {
     );
 
     if (!res.ok) {
-      const text = await res.text();
       return NextResponse.json(
-        { error: `Backend error: ${text}` },
+        { error: 'Backend service error' },
         { status: res.status }
       );
     }
