@@ -216,6 +216,17 @@ function initialize() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_blind_tokens_wallet ON blind_tokens(wallet_address);
+
+    CREATE TABLE IF NOT EXISTS erc8004_links (
+      erc8004_agent_id TEXT PRIMARY KEY,
+      erc8004_chain TEXT DEFAULT 'base',
+      agentstamp_wallet TEXT NOT NULL,
+      agentstamp_agent_id TEXT,
+      registration_name TEXT,
+      registration_uri TEXT,
+      linked_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_erc8004_wallet ON erc8004_links(agentstamp_wallet);
   `);
 
   // Add heartbeat_count column if it doesn't exist (migration-safe)

@@ -5,12 +5,24 @@ const nacl = require('tweetnacl');
 const bs58Module = require('bs58');
 const bs58 = bs58Module.default || bs58Module;
 
+const crypto = require('crypto');
+
 const EVM_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SOLANA_REGEX = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-const TIMESTAMP_WINDOW_SECONDS = 300; // 5 minutes
+const TIMESTAMP_WINDOW_SECONDS = 120; // 2 minutes (reduced from 5min to shrink replay window)
 
-function buildSignatureMessage(action, timestamp) {
+function buildSignatureMessage(action, timestamp, bodyHash) {
+  // bodyHash binds the signature to the specific request body, preventing replay with different payloads
+  if (bodyHash) {
+    return `AgentStamp:${action}:${timestamp}:${bodyHash}`;
+  }
   return `AgentStamp:${action}:${timestamp}`;
+}
+
+function hashRequestBody(body) {
+  if (!body || typeof body !== 'object' || Object.keys(body).length === 0) return null;
+  const canonical = JSON.stringify(body);
+  return crypto.createHash('sha256').update(canonical).digest('hex').slice(0, 16);
 }
 
 function verifyEvmSignature(message, signature, expectedAddress) {
@@ -64,6 +76,7 @@ function verifyWalletSignature(message, signature, walletAddress) {
 
 module.exports = {
   buildSignatureMessage,
+  hashRequestBody,
   verifyEvmSignature,
   verifySolanaSignature,
   verifyWalletSignature,

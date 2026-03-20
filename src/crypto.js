@@ -16,6 +16,13 @@ function initialize() {
   }
 
   if (fs.existsSync(keyPath)) {
+    // Verify key file permissions are restrictive (owner-only read/write)
+    const stats = fs.statSync(keyPath);
+    const mode = stats.mode & 0o777;
+    if (mode & 0o077) {
+      console.warn(`WARNING: Ed25519 private key at ${keyPath} has loose permissions (${mode.toString(8)}). Fixing to 0600.`);
+      fs.chmodSync(keyPath, 0o600);
+    }
     privateKey = crypto.createPrivateKey(fs.readFileSync(keyPath, 'utf8'));
     publicKey = crypto.createPublicKey(privateKey);
   } else {

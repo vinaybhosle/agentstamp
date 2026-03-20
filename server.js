@@ -1,13 +1,14 @@
 const config = require('./src/config');
 const database = require('./src/database');
 const cryptoModule = require('./src/crypto');
+const crypto = require('crypto');
 
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
 
-const rateLimiter = require('./src/middleware/rateLimit');
+const { globalLimiter, mutationLimiter, readLimiter, analyticsLimiter } = require('./src/middleware/rateLimit');
 const requestTracker = require('./src/middleware/requestTracker');
 const healthRoutes = require('./src/routes/health');
 const stampRoutes = require('./src/routes/stamp');
@@ -21,6 +22,7 @@ const trustRoutes = require('./src/routes/trust');
 const adminRoutes = require('./src/routes/admin');
 const walletRoutes = require('./src/routes/wallet');
 const auditRoutes = require('./src/routes/audit');
+const bridgeRoutes = require('./src/routes/bridge');
 const { mountMcpOnExpress } = require('./src/mcp-server');
 
 // Initialize core systems
@@ -71,7 +73,7 @@ app.use((err, req, res, next) => {
   }
   next(err);
 });
-app.use(rateLimiter);
+app.use(globalLimiter);
 
 // Request tracking — logs every API hit for traffic analytics
 app.use(requestTracker(database.getDb));
@@ -98,6 +100,7 @@ const PAID_ROUTE_PATTERNS = [
   { method: 'POST', path: '/api/v1/well/wish' },
   { method: 'POST', path: '/api/v1/well/grant/' },
   { method: 'GET', path: '/api/v1/well/insights', exact: true },
+  { method: 'POST', path: '/api/v1/bridge/erc8004/link', exact: true },
 ];
 
 // x402 payment middleware (V2 — dual-chain: Base + Solana)
@@ -136,9 +139,32 @@ const PAID_ROUTE_PATTERNS = [
       'POST /api/v1/well/wish': { accepts: dualChainAccepts('$0.001'), description: 'Cast a wish for a capability' },
       'POST /api/v1/well/grant/[wishId]': { accepts: dualChainAccepts('$0.005'), description: 'Grant a wish' },
       'GET /api/v1/well/insights': { accepts: dualChainAccepts('$0.01'), description: 'Market insights on what AI agents want' },
+      'POST /api/v1/bridge/erc8004/link': { accepts: dualChainAccepts('$0.01'), description: 'Link ERC-8004 on-chain agent to AgentStamp trust layer' },
     };
 
     app.use(paymentMiddleware(paidRoutes, resourceServer));
+
+    // x402 payment replay detection — reject duplicate payment tokens (local dedup layer)
+    const seenPayments = new Map(); // hash → timestamp
+    const PAYMENT_DEDUP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+    setInterval(() => {
+      const cutoff = Date.now() - PAYMENT_DEDUP_TTL_MS;
+      for (const [hash, ts] of seenPayments) {
+        if (ts < cutoff) seenPayments.delete(hash);
+      }
+    }, 60_000);
+
+    app.use((req, res, next) => {
+      const paymentHeader = req.headers['x-payment'] || req.headers['payment'];
+      if (!paymentHeader) return next();
+      const paymentHash = crypto.createHash('sha256').update(paymentHeader).digest('hex');
+      if (seenPayments.has(paymentHash)) {
+        return res.status(409).json({ success: false, error: 'Duplicate payment token — possible replay attack' });
+      }
+      seenPayments.set(paymentHash, Date.now());
+      next();
+    });
+
     x402Loaded = true;
     console.log('x402 payment middleware loaded (V2 dual-chain: Base + Solana)');
   } catch (err) {
@@ -171,6 +197,7 @@ const PAID_ROUTE_PATTERNS = [
     { method: 'POST', path: '/api/v1/well/grant/' },
     { method: 'POST', path: '/api/v1/wallet/link' },
     { method: 'POST', path: '/api/v1/wallet/unlink' },
+    { method: 'POST', path: '/api/v1/bridge/erc8004/link' },
   ];
   app.use((req, res, next) => {
     const needsWallet = WALLET_REQUIRED_PATTERNS.some(
@@ -197,19 +224,20 @@ const PAID_ROUTE_PATTERNS = [
     next();
   });
 
-  // Routes
+  // Routes — with per-route rate limiters layered on top of global
   app.use(healthRoutes);
-  app.use('/api/v1/stamp', stampRoutes);
+  app.use('/api/v1/stamp', mutationLimiter, stampRoutes);
   app.use('/api/v1/registry', registryRoutes);
   app.use('/api/v1/well', wellRoutes);
-  app.use('/api/v1/passport', passportRoutes);
-  app.use('/api/v1/analytics', analyticsRoutes);
-  app.use('/api/v1/badge', badgeRoutes);
-  app.use('/api/v1/webhooks', webhookRoutes);
-  app.use('/api/v1/trust', trustRoutes);
-  app.use('/api/v1/wallet', walletRoutes);
-  app.use('/api/v1/admin', adminRoutes);
-  app.use('/api/v1/audit', auditRoutes);
+  app.use('/api/v1/passport', readLimiter, passportRoutes);
+  app.use('/api/v1/analytics', analyticsLimiter, analyticsRoutes);
+  app.use('/api/v1/badge', readLimiter, badgeRoutes);
+  app.use('/api/v1/webhooks', mutationLimiter, webhookRoutes);
+  app.use('/api/v1/trust', readLimiter, trustRoutes);
+  app.use('/api/v1/wallet', mutationLimiter, walletRoutes);
+  app.use('/api/v1/bridge', bridgeRoutes);
+  app.use('/api/v1/admin', analyticsLimiter, adminRoutes);
+  app.use('/api/v1/audit', readLimiter, auditRoutes);
 
   // MCP server (Streamable HTTP transport)
   mountMcpOnExpress(app, '/mcp');
@@ -257,6 +285,7 @@ const PAID_ROUTE_PATTERNS = [
         'well/wish': '$0.001',
         'well/grant': '$0.005',
         'well/insights': '$0.01',
+        'bridge/erc8004/link': '$0.01',
       },
     });
   });
@@ -264,7 +293,7 @@ const PAID_ROUTE_PATTERNS = [
   // Smithery server-card
   app.get('/.well-known/mcp/server-card.json', (req, res) => {
     res.json({
-      serverInfo: { name: 'AgentStamp', version: '1.0.0' },
+      serverInfo: { name: 'AgentStamp', version: '2.0.0' },
       tools: [
         { name: 'stamp_mint_bronze', description: 'Mint a bronze identity certificate (24h). $0.001 via x402 USDC.', inputSchema: { type: 'object', properties: {} } },
         { name: 'stamp_mint_silver', description: 'Mint a silver identity certificate (7d). $0.005 via x402 USDC.', inputSchema: { type: 'object', properties: {} } },
@@ -332,6 +361,9 @@ GET /api/v1/trust/check/:walletAddress — Single-call trust verdict: { trusted:
 GET /api/v1/trust/compare?wallets=0x...,0x... — Side-by-side trust comparison (up to 5 wallets)
 GET /api/v1/trust/network — Network-wide trust stats (social proof: active agents, stamps, endorsements)
 GET /api/v1/trust/pulse — Live network activity feed: recent stamps, registrations, endorsements, wishes with velocity stats
+GET /api/v1/trust/check/erc8004:<agentId> — Trust verdict for an ERC-8004 agent by their on-chain ID
+GET /api/v1/bridge/erc8004/:agentId — Look up ERC-8004 agent with AgentStamp trust score
+GET /api/v1/bridge/erc8004/:agentId/passport — Full AgentStamp passport for an ERC-8004 agent
 
 ## Paid Endpoints (x402 — USDC on Base & Solana)
 POST /api/v1/stamp/mint/bronze — Bronze identity certificate, 24h ($0.001/call)
@@ -343,6 +375,7 @@ POST /api/v1/registry/endorse/:agentId — Endorse an agent ($0.005/call)
 POST /api/v1/well/wish — Cast a wish for a capability ($0.001/call)
 POST /api/v1/well/grant/:wishId — Grant a wish ($0.005/call)
 GET /api/v1/well/insights — Market insights: what AI agents want ($0.01/call)
+POST /api/v1/bridge/erc8004/link — Link ERC-8004 on-chain agent to AgentStamp trust layer ($0.01/call)
 
 ## Webhooks (FREE)
 POST /api/v1/webhooks/register — Register a webhook (events: stamp_minted, stamp_expiring, endorsement_received, wish_granted)
@@ -438,12 +471,12 @@ Facilitator: ${config.facilitatorUrl}
 
   // Periodic cleanup every 10 minutes
   setInterval(() => {
-    try { database.cleanupExpired(); } catch (e) { /* ignore */ }
+    try { database.cleanupExpired(); } catch (e) { console.error('Cleanup error:', e.message); }
   }, 10 * 60 * 1000);
 
   // Start server
   app.listen(config.port, config.host, () => {
-    console.log(`\n  AgentStamp v1.0.0`);
+    console.log(`\n  AgentStamp v2.0.0`);
     console.log(`  Stamp your agent into existence.\n`);
     console.log(`  Server:      http://${config.host}:${config.port}`);
     console.log(`  Health:      http://localhost:${config.port}/health`);

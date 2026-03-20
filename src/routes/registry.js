@@ -8,7 +8,7 @@ const { appendEvent } = require('../eventLog');
 const { requireSignature } = require('../middleware/walletSignature');
 
 // POST /api/v1/registry/register/free — Free 30-day agent registration
-router.post('/register/free', requireSignature({ required: false, action: 'register' }), (req, res) => {
+router.post('/register/free', requireSignature({ required: true, action: 'register' }), (req, res) => {
   try {
     const walletAddress = req.headers['x-wallet-address'] || req.body.wallet_address;
     if (!walletAddress || walletAddress === '0x0000000000000000000000000000000000000000') {
@@ -104,7 +104,7 @@ router.post('/register/free', requireSignature({ required: false, action: 'regis
 });
 
 // POST /api/v1/registry/register
-router.post('/register', requireSignature({ required: false, action: 'register' }), (req, res) => {
+router.post('/register', requireSignature({ required: true, action: 'register' }), (req, res) => {
   try {
     const validation = validateAgentRegister(req.body);
     if (!validation.valid) {
@@ -214,7 +214,7 @@ router.put('/update/:agentId', requireSignature({ required: true, action: 'updat
 });
 
 // POST /api/v1/registry/endorse/:agentId
-router.post('/endorse/:agentId', requireSignature({ required: false, action: 'endorse' }), (req, res) => {
+router.post('/endorse/:agentId', requireSignature({ required: true, action: 'endorse' }), (req, res) => {
   try {
     const db = getDb();
     const agent = db.prepare("SELECT * FROM agents WHERE id = ? AND status = 'active'").get(req.params.agentId);

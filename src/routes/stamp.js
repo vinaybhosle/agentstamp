@@ -28,7 +28,7 @@ function getExpiresAt(tier) {
 }
 
 // POST /api/v1/stamp/mint/free — Free 7-day stamp (no x402 payment required)
-router.post('/mint/free', requireSignature({ required: false, action: 'mint' }), (req, res) => {
+router.post('/mint/free', requireSignature({ required: true, action: 'mint' }), (req, res) => {
   try {
     const walletAddress = req.headers['x-wallet-address'] || req.body.wallet_address;
     if (!walletAddress || walletAddress === '0x0000000000000000000000000000000000000000') {
@@ -128,7 +128,7 @@ router.post('/mint/free', requireSignature({ required: false, action: 'mint' }),
 });
 
 // POST /api/v1/stamp/mint/:tier
-router.post('/mint/:tier', requireSignature({ required: false, action: 'mint' }), (req, res) => {
+router.post('/mint/:tier', requireSignature({ required: true, action: 'mint' }), (req, res) => {
   try {
     const { tier } = req.params;
     if (!TIER_CONFIG[tier]) {

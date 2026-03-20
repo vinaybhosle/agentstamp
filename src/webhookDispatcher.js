@@ -1,8 +1,29 @@
 const crypto = require('crypto');
+const dns = require('dns');
+const { promisify } = require('util');
+
+const dnsResolve = promisify(dns.resolve4);
+
+/**
+ * Check if an IP address is private/internal (SSRF protection).
+ */
+function isPrivateIP(ip) {
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4) return true; // non-IPv4 → block
+  return (
+    parts[0] === 10 ||
+    parts[0] === 127 ||
+    parts[0] === 0 ||
+    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+    (parts[0] === 192 && parts[1] === 168) ||
+    (parts[0] === 169 && parts[1] === 254)
+  );
+}
 
 /**
  * Dispatch webhook events to registered URLs.
  * Fire-and-forget with 5s timeout. Best-effort — failures are silent.
+ * DNS rebinding protection: resolve hostname to IP and verify it's public before connecting.
  */
 async function dispatch(walletAddress, event, payload) {
   try {
@@ -20,8 +41,9 @@ async function dispatch(walletAddress, event, payload) {
 
     for (const hook of hooks) {
       // SSRF re-validation: only allow HTTPS to public hosts
+      let parsed;
       try {
-        const parsed = new URL(hook.url);
+        parsed = new URL(hook.url);
         if (parsed.protocol !== 'https:') continue;
         const h = parsed.hostname.toLowerCase();
         if (h === 'localhost' || h === '127.0.0.1' || h === '::1' ||
@@ -31,6 +53,14 @@ async function dispatch(walletAddress, event, payload) {
           continue;
         }
       } catch { continue; }
+
+      // DNS rebinding protection: resolve hostname and verify IPs are public
+      try {
+        const ips = await dnsResolve(parsed.hostname);
+        if (!ips || ips.length === 0 || ips.some(isPrivateIP)) continue;
+      } catch {
+        continue; // DNS resolution failed — skip this hook
+      }
 
       const body = JSON.stringify({
         event,

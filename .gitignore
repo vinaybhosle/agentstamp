@@ -26,3 +26,13 @@ ed25519*
 security-audit-report-*.txt
 web/.env.local
 web/.env
+
+# Build artifacts
+sdk/dist/
+sdk/python/dist/
+sdk/python/*.egg-info/
+
+# Temporary files
+tmp_*.json
+tmp_*.py
+tmp_*.js
