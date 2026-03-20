@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Stamp, Database, Sparkles, ArrowRight, Zap, Shield, Globe, CheckCircle2, Code, Crown, Activity, Users, Award, Star, Clock, Rocket, Handshake, EyeOff, FileSearch, Bell, Lock, Hash, BarChart3, ShieldCheck, Layers, Link2, ShieldAlert, Fingerprint } from "lucide-react";
+import { Stamp, Database, Sparkles, ArrowRight, Zap, Shield, Globe, CheckCircle2, Code, Crown, Activity, Users, Award, Star, Clock, Rocket, Handshake, EyeOff, FileSearch, Bell, Lock, Hash, BarChart3, ShieldCheck, Layers, Link2, ShieldAlert, Fingerprint, FileKey } from "lucide-react";
 import type { StampStats, Agent, Wish } from "@/types";
 import { StatsSection } from "./StatsSection";
 
@@ -204,6 +204,12 @@ const trustCapabilities = [
     desc: "Mutation requests bind the SHA-256 body hash into the signature. Prevents replay and tampering attacks.",
     color: "#ffaa00",
   },
+  {
+    icon: FileKey,
+    title: "A2A Passport",
+    desc: "Google A2A-compatible signed passport. Portable agent identity with trust score, stamp, and wallet links. Built before A2A v0.3 existed.",
+    color: "#00f0ff",
+  },
 ];
 
 const trustTiers = [
@@ -228,6 +234,7 @@ const poweredBy = [
   { name: "Solana", label: "Solana" },
   { name: "USDC", label: "USDC" },
   { name: "ERC-8004", label: "ERC-8004" },
+  { name: "A2A", label: "Google A2A" },
 ];
 
 function getTimeAgo(timestamp: string): string {
@@ -542,7 +549,7 @@ export default async function HomePage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-[#e8e8ed]">Trust Intelligence</h2>
-            <p className="mt-3 text-[#6b6b80]">Twelve capabilities that make agent trust computable.</p>
+            <p className="mt-3 text-[#6b6b80]">Thirteen capabilities that make agent trust computable.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {trustCapabilities.map((item) => (
@@ -897,6 +904,10 @@ export default async function HomePage() {
             <span className="flex items-center gap-1.5">
               <CheckCircle2 className="size-3 text-[#00ff88]" />
               x402 compatible
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="size-3 text-[#00ff88]" />
+              A2A v0.3 compatible
             </span>
             <span className="flex items-center gap-1.5">
               <CheckCircle2 className="size-3 text-[#00ff88]" />
