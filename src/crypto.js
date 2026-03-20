@@ -32,14 +32,23 @@ function initialize() {
   }
 }
 
+function sortKeysDeep(obj) {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sortKeysDeep);
+  return Object.keys(obj).sort().reduce((acc, key) => {
+    acc[key] = sortKeysDeep(obj[key]);
+    return acc;
+  }, {});
+}
+
 function signCertificate(certificateObj) {
-  const canonical = JSON.stringify(certificateObj, Object.keys(certificateObj).sort());
+  const canonical = JSON.stringify(sortKeysDeep(certificateObj));
   const signature = crypto.sign(null, Buffer.from(canonical), privateKey);
   return signature.toString('base64');
 }
 
 function verifyCertificate(certificateObj, signatureBase64) {
-  const canonical = JSON.stringify(certificateObj, Object.keys(certificateObj).sort());
+  const canonical = JSON.stringify(sortKeysDeep(certificateObj));
   const signature = Buffer.from(signatureBase64, 'base64');
   return crypto.verify(null, Buffer.from(canonical), publicKey, signature);
 }
