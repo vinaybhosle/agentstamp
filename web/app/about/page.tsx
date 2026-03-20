@@ -100,8 +100,8 @@ const pricingRows = [
 ];
 
 const platformStats = [
-  { value: "50+", label: "API Endpoints" },
-  { value: "22", label: "MCP Tools" },
+  { value: "55", label: "API Endpoints" },
+  { value: "14", label: "MCP Tools" },
   { value: "4", label: "Stamp Tiers" },
   { value: "2", label: "Chains (Base + Solana)" },
   { value: "3", label: "SDKs (npm, PyPI, MCP)" },
