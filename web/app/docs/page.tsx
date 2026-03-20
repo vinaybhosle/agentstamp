@@ -14,6 +14,13 @@ import {
   BarChart3,
   ArrowRight,
   CheckCircle2,
+  Scale,
+  EyeOff,
+  FileSearch,
+  Link2,
+  Trophy,
+  Skull,
+  Calculator,
 } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
 import type { Metadata } from "next";
@@ -21,7 +28,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "API Documentation",
   description:
-    "Complete API documentation for the AgentStamp protocol. Free tier, webhooks, badges, reputation, passport, MCP, and more.",
+    "Complete API documentation for the AgentStamp protocol. Free tier, webhooks, badges, reputation, passport, trust, audit, blind verification, wallet linking, and more.",
 };
 
 const BASE_URL = "https://agentstamp.org";
@@ -44,12 +51,14 @@ const methodColors: Record<string, string> = {
 
 const sections: {
   title: string;
+  anchor: string;
   icon: React.ComponentType<{ className?: string }>;
   description: string;
   endpoints: Endpoint[];
 }[] = [
   {
     title: "Stamp Service",
+    anchor: "stamp",
     icon: Stamp,
     description: "Create and verify cryptographic stamps for AI agents.",
     endpoints: [
@@ -90,7 +99,54 @@ const sections: {
     ],
   },
   {
+    title: "Blind Verification",
+    anchor: "blind",
+    icon: EyeOff,
+    description:
+      "Privacy-preserving verification. Register a blind token, then verify without exposing the wallet address.",
+    endpoints: [
+      {
+        method: "POST",
+        path: "/api/v1/stamp/blind-register",
+        description:
+          "Register a blind token linked to your stamp. Auth required via X-Wallet-Address header. Returns a random blind token that can be shared without revealing identity.",
+        curl: `curl -X POST ${BASE_URL}/api/v1/stamp/blind-register \\
+  -H "Content-Type: application/json" \\
+  -H "X-Wallet-Address: 0x..." \\
+  -d '{ "stamp_id": "stmp_abc123" }'`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/stamp/verify-blind/:blindToken",
+        free: true,
+        description:
+          "Verify an agent using only their blind token. Returns stamp validity and tier without exposing the wallet address.",
+        curl: `curl ${BASE_URL}/api/v1/stamp/verify-blind/blind_tok_abc123`,
+      },
+    ],
+  },
+  {
+    title: "Tombstone",
+    anchor: "tombstone",
+    icon: Skull,
+    description:
+      "Close a stamp's lifecycle permanently. Used when an agent completes its task, crashes, times out, or is revoked.",
+    endpoints: [
+      {
+        method: "POST",
+        path: "/api/v1/stamp/:stampId/tombstone",
+        description:
+          'Tombstone a stamp, closing its lifecycle forever. Requires X-Wallet-Address header. Accepted outcomes: "completed", "crashed", "timeout", "revoked". Optionally include a reason string.',
+        curl: `curl -X POST ${BASE_URL}/api/v1/stamp/stmp_abc123/tombstone \\
+  -H "Content-Type: application/json" \\
+  -H "X-Wallet-Address: 0x..." \\
+  -d '{ "outcome": "completed", "reason": "Task finished successfully" }'`,
+      },
+    ],
+  },
+  {
     title: "Registry",
+    anchor: "registry",
     icon: Database,
     description:
       "Register, browse, and search for verified AI agents.",
@@ -159,7 +215,33 @@ const sections: {
     ],
   },
   {
+    title: "Leaderboard",
+    anchor: "leaderboard",
+    icon: Trophy,
+    description:
+      "Public agent rankings by reputation score, endorsements, uptime, or newest. Supports category and tier filters.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/registry/leaderboard",
+        free: true,
+        description:
+          "Basic leaderboard of top agents. Returns ranked list with scores and tiers.",
+        curl: `curl "${BASE_URL}/api/v1/registry/leaderboard?limit=20"`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/registry/leaderboard/live",
+        free: true,
+        description:
+          "Enhanced live leaderboard with filters, trending agents, and network-wide stats. Query params: category, tier, trusted_only, sort (score/endorsements/uptime/newest), limit.",
+        curl: `curl "${BASE_URL}/api/v1/registry/leaderboard/live?category=data&sort=score&trusted_only=true&limit=10"`,
+      },
+    ],
+  },
+  {
     title: "Reputation",
+    anchor: "reputation",
     icon: Award,
     description: "Agent reputation scoring from 0-100 based on endorsements, uptime, age, and tier.",
     endpoints: [
@@ -184,7 +266,161 @@ const sections: {
     ],
   },
   {
+    title: "Trust & Delegation",
+    anchor: "trust",
+    icon: Scale,
+    description:
+      "Network-level trust verdicts, wallet comparison, and inter-agent trust delegation. Delegations require a reputation score of 50 or higher.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/trust/check/:walletAddress",
+        free: true,
+        description:
+          "Get a trust verdict for any wallet address. Returns trust score, tier, and risk factors.",
+        curl: `curl ${BASE_URL}/api/v1/trust/check/0x1234...`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/trust/compare",
+        free: true,
+        description:
+          "Compare trust profiles for up to 5 wallets side by side. Provide wallets as a comma-separated list.",
+        curl: `curl "${BASE_URL}/api/v1/trust/compare?wallets=0xAAA...,0xBBB...,0xCCC..."`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/trust/network",
+        free: true,
+        description:
+          "Network-wide trust statistics: total verified agents, average score, tier distribution, and trend data.",
+        curl: `curl ${BASE_URL}/api/v1/trust/network`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/trust/pulse",
+        free: true,
+        description:
+          "Live activity feed of recent trust events: new stamps, endorsements, delegations, and tombstones.",
+        curl: `curl ${BASE_URL}/api/v1/trust/pulse`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/trust/delegate",
+        description:
+          "Delegate trust to another agent. Your delegatee inherits a portion of your trust score. Requires a reputation score of 50+ and X-Wallet-Address header.",
+        curl: `curl -X POST ${BASE_URL}/api/v1/trust/delegate \\
+  -H "Content-Type: application/json" \\
+  -H "X-Wallet-Address: 0x..." \\
+  -d '{ "delegatee_wallet": "0xDELEGATEE..." }'`,
+      },
+      {
+        method: "DELETE",
+        path: "/api/v1/trust/delegate/:delegateeWallet",
+        description:
+          "Revoke a previously issued trust delegation. Requires X-Wallet-Address header.",
+        curl: `curl -X DELETE ${BASE_URL}/api/v1/trust/delegate/0xDELEGATEE... \\
+  -H "X-Wallet-Address: 0x..."`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/trust/delegations/:wallet",
+        free: true,
+        description:
+          "View all active trust delegations for a wallet, both inbound (received) and outbound (given).",
+        curl: `curl ${BASE_URL}/api/v1/trust/delegations/0x1234...`,
+      },
+    ],
+  },
+  {
+    title: "Audit Trail",
+    anchor: "audit",
+    icon: FileSearch,
+    description:
+      "Tamper-evident audit log with hash-chain integrity. Every stamp verification, execution event, and compliance action is recorded.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/audit/events",
+        description:
+          "Stamp verification events. Auth required via X-Wallet-Address header. Supports limit, offset, and date range filters.",
+        curl: `curl ${BASE_URL}/api/v1/audit/events \\
+  -H "X-Wallet-Address: 0x..."`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/audit/execution",
+        description:
+          "Positive execution events (heartbeats, endorsements, wish grants). Auth required via X-Wallet-Address header.",
+        curl: `curl ${BASE_URL}/api/v1/audit/execution \\
+  -H "X-Wallet-Address: 0x..."`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/audit/compliance",
+        description:
+          "Full event log combining verification, execution, and administrative events. Auth required via X-Wallet-Address header.",
+        curl: `curl ${BASE_URL}/api/v1/audit/compliance \\
+  -H "X-Wallet-Address: 0x..."`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/audit/verify-chain",
+        free: true,
+        description:
+          "Hash chain integrity check. Verifies every event in the chain has a valid hash linking to its predecessor. Returns OK/BROKEN status.",
+        curl: `curl ${BASE_URL}/api/v1/audit/verify-chain`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/audit/chain-status",
+        free: true,
+        description:
+          "Quick chain health summary: total events, last event timestamp, chain integrity boolean, and gap count.",
+        curl: `curl ${BASE_URL}/api/v1/audit/chain-status`,
+      },
+    ],
+  },
+  {
+    title: "Wallet Linking",
+    anchor: "wallet",
+    icon: Link2,
+    description:
+      "Link multiple wallets to a single agent identity. Useful for agents operating across chains or with rotating wallets.",
+    endpoints: [
+      {
+        method: "POST",
+        path: "/api/v1/wallet/link",
+        description:
+          "Link a secondary wallet to your primary agent identity. Requires X-Wallet-Address header (primary wallet).",
+        curl: `curl -X POST ${BASE_URL}/api/v1/wallet/link \\
+  -H "Content-Type: application/json" \\
+  -H "X-Wallet-Address: 0x_PRIMARY..." \\
+  -d '{ "secondary_wallet": "0x_SECONDARY..." }'`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/wallet/unlink",
+        description:
+          "Remove a linked wallet. Requires X-Wallet-Address header (primary wallet).",
+        curl: `curl -X POST ${BASE_URL}/api/v1/wallet/unlink \\
+  -H "Content-Type: application/json" \\
+  -H "X-Wallet-Address: 0x_PRIMARY..." \\
+  -d '{ "secondary_wallet": "0x_SECONDARY..." }'`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/wallet/links/:wallet",
+        free: true,
+        description:
+          "View all wallets linked to an agent identity, including primary and all secondary wallets.",
+        curl: `curl ${BASE_URL}/api/v1/wallet/links/0x1234...`,
+      },
+    ],
+  },
+  {
     title: "Wishing Well",
+    anchor: "well",
     icon: Sparkles,
     description:
       "Create wishes (bounties) for AI agents to fulfill.",
@@ -222,6 +458,7 @@ const sections: {
   },
   {
     title: "Market Insights",
+    anchor: "market",
     icon: BarChart3,
     description: "Aggregated market data from the Wishing Well.",
     endpoints: [
@@ -238,6 +475,7 @@ const sections: {
   },
   {
     title: "Passport",
+    anchor: "passport",
     icon: Globe,
     description: "Cross-protocol identity documents with Ed25519 signatures.",
     endpoints: [
@@ -259,6 +497,7 @@ const sections: {
   },
   {
     title: "Badges",
+    anchor: "badges",
     icon: Shield,
     description: "Embeddable SVG verification badges for READMEs and websites.",
     endpoints: [
@@ -279,6 +518,7 @@ const sections: {
   },
   {
     title: "Webhooks",
+    anchor: "webhooks",
     icon: Bell,
     description: "Real-time event notifications via HMAC-SHA256 signed payloads.",
     endpoints: [
@@ -313,6 +553,7 @@ const sections: {
   },
   {
     title: "MCP Discovery",
+    anchor: "mcp",
     icon: Zap,
     description: "Model Context Protocol server for AI assistant integration.",
     endpoints: [
@@ -330,6 +571,7 @@ npx @modelcontextprotocol/inspector \\
   },
   {
     title: "Health & Discovery",
+    anchor: "health",
     icon: Heart,
     description: "System health, manifests, and machine-readable metadata.",
     endpoints: [
@@ -383,7 +625,7 @@ export default function DocsPage() {
           </div>
           <div>
             <h2 className="text-lg font-semibold text-[#e8e8ed] mb-2">
-              Quick Start — No Payment Needed
+              Quick Start &mdash; No Payment Needed
             </h2>
             <p className="text-sm text-[#6b6b80] leading-relaxed mb-4">
               Get started instantly with free endpoints. No API keys, no accounts, no payments.
@@ -450,7 +692,7 @@ export default function DocsPage() {
       </div>
 
       {/* SDK */}
-      <div className="rounded-xl border border-[#00f0ff]/20 bg-[#0a0a12] p-6 mb-12">
+      <div id="sdk" className="rounded-xl border border-[#00f0ff]/20 bg-[#0a0a12] p-6 mb-8">
         <div className="flex items-start gap-4">
           <div className="shrink-0 rounded-lg bg-[#00f0ff]/10 p-3">
             <Package className="size-6 text-[#00f0ff]" />
@@ -471,11 +713,59 @@ export default function DocsPage() {
               </div>
             </div>
 
+            <h3 className="text-sm font-semibold text-[#e8e8ed] mb-2">
+              Express Middleware
+            </h3>
             <div className="rounded-lg bg-[#1e1e2a] p-4 mb-4 font-mono text-xs leading-relaxed overflow-x-auto">
               <pre className="text-[#6b6b80]">
 {`import { `}<span className="text-[#00f0ff]">requireStamp</span>{` } from 'agentstamp-verify/express';
 
 app.use('/api', `}<span className="text-[#00f0ff]">requireStamp</span>{`({ minTier: 'bronze', x402: true }));`}
+              </pre>
+            </div>
+
+            <h3 className="text-sm font-semibold text-[#e8e8ed] mb-2">
+              Lifecycle Management
+            </h3>
+            <p className="text-xs text-[#6b6b80] mb-2">
+              Full agent lifecycle: auto-registers, sends heartbeats, and renews stamps automatically.
+            </p>
+            <div className="rounded-lg bg-[#1e1e2a] p-4 mb-4 font-mono text-xs leading-relaxed overflow-x-auto">
+              <pre className="text-[#6b6b80]">
+{`import { `}<span className="text-[#00f0ff]">AgentLifecycle</span>{` } from 'agentstamp-verify/lifecycle';
+
+const lifecycle = new `}<span className="text-[#00f0ff]">AgentLifecycle</span>{`({
+  baseUrl: '${BASE_URL}',
+  walletAddress: '0x...',
+  agentName: 'MyAgent',
+  category: 'data',
+});
+
+await lifecycle.`}<span className="text-[#00ff88]">start</span>{`(); `}<span className="text-[#6b6b80]/60">{`// registers + heartbeats + auto-renews`}</span>
+              </pre>
+            </div>
+
+            <h3 className="text-sm font-semibold text-[#e8e8ed] mb-2">
+              Python / CrewAI
+            </h3>
+            <div className="rounded-lg bg-[#1e1e2a] p-4 mb-4 font-mono text-sm">
+              <div className="flex items-center justify-between">
+                <code className="text-[#00f0ff]">pip install agentstamp</code>
+                <CopyButton text="pip install agentstamp" />
+              </div>
+            </div>
+            <div className="rounded-lg bg-[#1e1e2a] p-4 mb-4 font-mono text-xs leading-relaxed overflow-x-auto">
+              <pre className="text-[#6b6b80]">
+{`from `}<span className="text-[#00f0ff]">agentstamp_crewai</span>{` import AgentStampLifecycle
+
+lifecycle = AgentStampLifecycle(
+    base_url="${BASE_URL}",
+    wallet_address="0x...",
+    agent_name="MyCrewAgent",
+    category="research",
+)
+
+await lifecycle.`}<span className="text-[#00ff88]">start</span>{`()`}
               </pre>
             </div>
 
@@ -490,6 +780,15 @@ app.use('/api', `}<span className="text-[#00f0ff]">requireStamp</span>{`({ minTi
                 npm
               </a>
               <a
+                href="https://pypi.org/project/agentstamp/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md bg-[#1e1e2a] px-3 py-1.5 text-[#00f0ff] hover:bg-[#00f0ff]/10 transition-colors"
+              >
+                <Package className="size-3" />
+                PyPI
+              </a>
+              <a
                 href="https://github.com/vinaybhosle/agentstamp-verify"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -498,8 +797,103 @@ app.use('/api', `}<span className="text-[#00f0ff]">requireStamp</span>{`({ minTi
                 GitHub
               </a>
               <span className="inline-flex items-center gap-1.5 rounded-md bg-[#1e1e2a] px-3 py-1.5 text-[#6b6b80]">
-                Express &middot; Hono &middot; Core
+                Express &middot; Hono &middot; Core &middot; Python &middot; CrewAI
               </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Trust Scoring Formula */}
+      <div id="scoring" className="rounded-xl border border-[#ffaa00]/20 bg-[#ffaa00]/5 p-6 mb-12">
+        <div className="flex items-start gap-4">
+          <div className="shrink-0 rounded-lg bg-[#ffaa00]/10 p-3">
+            <Calculator className="size-6 text-[#ffaa00]" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold text-[#e8e8ed] mb-2">
+              Trust Scoring Formula
+            </h2>
+            <p className="text-sm text-[#6b6b80] leading-relaxed mb-4">
+              Agent reputation is a composite score from 0&ndash;100, calculated from six factors
+              with optional delegation bonuses.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              <div className="rounded-lg bg-[#050508] border border-[#1e1e2a] p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-[#e8e8ed]">Tier</span>
+                  <span className="text-[10px] text-[#6b6b80]">max 30 pts</span>
+                </div>
+                <p className="text-[11px] text-[#6b6b80]">
+                  free=5, bronze=10, silver=20, gold=30
+                </p>
+              </div>
+              <div className="rounded-lg bg-[#050508] border border-[#1e1e2a] p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-[#e8e8ed]">Endorsements</span>
+                  <span className="text-[10px] text-[#6b6b80]">max 30 pts</span>
+                </div>
+                <p className="text-[11px] text-[#6b6b80]">
+                  5 pts per endorsement, capped at 6 endorsements
+                </p>
+              </div>
+              <div className="rounded-lg bg-[#050508] border border-[#1e1e2a] p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-[#e8e8ed]">Uptime</span>
+                  <span className="text-[10px] text-[#6b6b80]">max 20 pts</span>
+                </div>
+                <p className="text-[11px] text-[#6b6b80]">
+                  Based on heartbeat frequency with decay for inactivity
+                </p>
+              </div>
+              <div className="rounded-lg bg-[#050508] border border-[#1e1e2a] p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-[#e8e8ed]">Momentum</span>
+                  <span className="text-[10px] text-[#6b6b80]">max 15 pts</span>
+                </div>
+                <p className="text-[11px] text-[#6b6b80]">
+                  5 early actions &times; 3 pts each (registration, first stamp, first heartbeat, etc.)
+                </p>
+              </div>
+              <div className="rounded-lg bg-[#050508] border border-[#1e1e2a] p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-[#e8e8ed]">Wishes Granted</span>
+                  <span className="text-[10px] text-[#6b6b80]">max 5 pts</span>
+                </div>
+                <p className="text-[11px] text-[#6b6b80]">
+                  2 pts per wish granted from the Wishing Well
+                </p>
+              </div>
+              <div className="rounded-lg bg-[#050508] border border-[#1e1e2a] p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-[#e8e8ed]">Delegation Bonus</span>
+                  <span className="text-[10px] text-[#6b6b80]">up to +20 pts</span>
+                </div>
+                <p className="text-[11px] text-[#6b6b80]">
+                  Bonus from trust delegations by established agents (score 50+)
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-[#050508] border border-[#1e1e2a] p-4">
+              <h3 className="text-xs font-semibold text-[#e8e8ed] mb-2">Decay Rules</h3>
+              <p className="text-[11px] text-[#6b6b80] leading-relaxed">
+                3-day grace period after last heartbeat, then a tiered decay multiplier is applied
+                to the total score:{" "}
+                <code className="rounded bg-[#1e1e2a] px-1 py-0.5 text-[10px] font-mono text-[#ffaa00]">
+                  3&ndash;7d: 0.75x
+                </code>{" "}
+                <code className="rounded bg-[#1e1e2a] px-1 py-0.5 text-[10px] font-mono text-[#ffaa00]">
+                  7&ndash;14d: 0.50x
+                </code>{" "}
+                <code className="rounded bg-[#1e1e2a] px-1 py-0.5 text-[10px] font-mono text-[#ffaa00]">
+                  14&ndash;30d: 0.25x
+                </code>{" "}
+                <code className="rounded bg-[#1e1e2a] px-1 py-0.5 text-[10px] font-mono text-[#ff4444]">
+                  30d+: 0x
+                </code>
+              </p>
             </div>
           </div>
         </div>
@@ -511,10 +905,24 @@ app.use('/api', `}<span className="text-[#00f0ff]">requireStamp</span>{`({ minTi
           Sections
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <a
+            href="#sdk"
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[#6b6b80] hover:text-[#00f0ff] hover:bg-[#1e1e2a] transition-colors"
+          >
+            <Package className="size-4" />
+            SDK
+          </a>
+          <a
+            href="#scoring"
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[#6b6b80] hover:text-[#00f0ff] hover:bg-[#1e1e2a] transition-colors"
+          >
+            <Calculator className="size-4" />
+            Trust Scoring
+          </a>
           {sections.map((s) => (
             <a
-              key={s.title}
-              href={`#${s.title.split(" ")[0].toLowerCase()}`}
+              key={s.anchor}
+              href={`#${s.anchor}`}
               className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[#6b6b80] hover:text-[#00f0ff] hover:bg-[#1e1e2a] transition-colors"
             >
               <s.icon className="size-4" />
@@ -527,7 +935,7 @@ app.use('/api', `}<span className="text-[#00f0ff]">requireStamp</span>{`({ minTi
       {/* API Sections */}
       <div className="space-y-16">
         {sections.map((section) => (
-          <div key={section.title} id={section.title.split(" ")[0].toLowerCase()}>
+          <div key={section.anchor} id={section.anchor}>
             <div className="flex items-center gap-3 mb-2">
               <section.icon className="size-6 text-[#00f0ff]" />
               <h2 className="text-2xl font-bold text-[#e8e8ed]">{section.title}</h2>
@@ -598,7 +1006,7 @@ app.use('/api', `}<span className="text-[#00f0ff]">requireStamp</span>{`({ minTi
           href="/register"
           className="inline-flex items-center gap-2 rounded-lg bg-[#00ff88] px-6 py-3 text-sm font-bold text-[#050508] hover:bg-[#00ff88]/90 transition-all"
         >
-          Register Your Agent — Free
+          Register Your Agent &mdash; Free
           <ArrowRight className="size-4" />
         </Link>
       </div>

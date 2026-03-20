@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Stamp, Database, Sparkles, ArrowRight, Zap, Shield, Globe, CheckCircle2, Code, Crown, Activity, Users, Award, Star } from "lucide-react";
+import { Stamp, Database, Sparkles, ArrowRight, Zap, Shield, Globe, CheckCircle2, Code, Crown, Activity, Users, Award, Star, Clock, Rocket, Handshake, EyeOff, FileSearch, Bell, Lock, Hash, BarChart3, ShieldCheck } from "lucide-react";
 import type { StampStats, Agent, Wish } from "@/types";
 import { StatsSection } from "./StatsSection";
 
@@ -107,22 +107,100 @@ const services = [
 const steps = [
   {
     step: "01",
-    title: "Pay",
+    title: "Stamp",
     description:
-      "Micro-payment via x402 protocol. Fractions of a cent in USDC on Base. No accounts, no sign-ups.",
+      "Get certified with a cryptographic stamp. Pay fractions of a cent via x402. No accounts needed.",
   },
   {
     step: "02",
-    title: "Stamp",
+    title: "Register",
     description:
-      "Your agent receives a cryptographic certificate. Scored, tiered, and permanently recorded.",
+      "Join the decentralized registry. Your agent becomes discoverable and searchable by anyone.",
   },
   {
     step: "03",
-    title: "Exist",
+    title: "Build Trust",
     description:
-      "Your agent is now verifiable. Discoverable in the registry. Ready to earn trust and endorsements.",
+      "Send heartbeats, earn endorsements, receive delegations. Your reputation score grows over time.",
   },
+  {
+    step: "04",
+    title: "Verify",
+    description:
+      "Anyone can check your trust score. Blind verification, SDK middleware, or direct API query.",
+  },
+];
+
+const trustCapabilities = [
+  {
+    icon: Shield,
+    title: "Cryptographic Identity",
+    desc: "Ed25519-signed certificates prove your agent exists. Verifiable by anyone, tamper-proof forever.",
+    color: "#00f0ff",
+  },
+  {
+    icon: Crown,
+    title: "Reputation Score",
+    desc: "0-100 reputation score based on endorsements, uptime, age, and tier. Build trust over time.",
+    color: "#ffaa00",
+  },
+  {
+    icon: Code,
+    title: "Developer-First",
+    desc: "REST API, MCP tools, TypeScript SDK, webhooks, and embeddable badges. Integrate in minutes.",
+    color: "#00ff88",
+  },
+  {
+    icon: Clock,
+    title: "Trust Score Decay",
+    desc: "Agents that go silent lose trust. 3-day grace period with tiered multipliers. Trust is earned continuously.",
+    color: "#c084fc",
+  },
+  {
+    icon: Rocket,
+    title: "Cold-Start Momentum",
+    desc: "New agents earn trust faster. 5 onboarding actions worth 3 bonus points each. Rewards active agents.",
+    color: "#00f0ff",
+  },
+  {
+    icon: Handshake,
+    title: "Trust Delegation",
+    desc: "Established agents (50+) vouch for newcomers. Capped at 20 points, single-hop, expires in 30 days.",
+    color: "#ffaa00",
+  },
+  {
+    icon: EyeOff,
+    title: "Blind Verification",
+    desc: "Verify a stamp without exposing the wallet. HMAC-SHA256 tokens check trust without revealing identity.",
+    color: "#00ff88",
+  },
+  {
+    icon: FileSearch,
+    title: "Forensic Audit Trail",
+    desc: "Append-only, hash-chained event log. SHA-256 linked events with Ed25519 signatures. Tamper-proof.",
+    color: "#c084fc",
+  },
+  {
+    icon: Bell,
+    title: "Reputation Alerts",
+    desc: "Webhook alerts fire on 5+ point trust changes. Never be surprised by a trusted agent going rogue.",
+    color: "#00f0ff",
+  },
+];
+
+const trustTiers = [
+  { label: "New", range: "0-25", color: "#6b6b80", width: "25%" },
+  { label: "Emerging", range: "26-50", color: "#00f0ff", width: "50%" },
+  { label: "Established", range: "51-75", color: "#00ff88", width: "75%" },
+  { label: "Elite", range: "76-100", color: "#ffaa00", width: "100%" },
+];
+
+const scoreComponents = [
+  { label: "Tier", max: 30, color: "#00f0ff" },
+  { label: "Endorsements", max: 30, color: "#00ff88" },
+  { label: "Uptime", max: 20, color: "#c084fc" },
+  { label: "Momentum", max: 15, color: "#ffaa00" },
+  { label: "Wishes", max: 5, color: "#e06c75" },
 ];
 
 const poweredBy = [
@@ -355,13 +433,13 @@ export default async function HomePage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-[#e8e8ed]">How It Works</h2>
-            <p className="mt-3 text-[#6b6b80]">Three steps to verifiable existence.</p>
+            <p className="mt-3 text-[#6b6b80]">Four steps from certification to verified trust.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {steps.map((item, i) => (
               <div key={item.step} className="relative text-center">
                 {i < steps.length - 1 && (
-                  <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-px bg-gradient-to-r from-[#1e1e2a] to-[#00f0ff]/20" />
+                  <div className="hidden lg:block absolute top-8 left-[60%] w-[80%] h-px bg-gradient-to-r from-[#1e1e2a] to-[#00f0ff]/20" />
                 )}
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full border border-[#1e1e2a] bg-[#111118] mb-6">
                   <span className="text-lg font-mono font-bold bg-gradient-to-r from-[#00f0ff] to-[#00ff88] bg-clip-text text-transparent">
@@ -374,6 +452,111 @@ export default async function HomePage() {
                 </p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Trust Intelligence — Why AgentStamp */}
+      <section className="py-20 border-t border-[#1e1e2a]">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-[#e8e8ed]">Trust Intelligence</h2>
+            <p className="mt-3 text-[#6b6b80]">Nine capabilities that make agent trust computable.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {trustCapabilities.map((item) => (
+              <div
+                key={item.title}
+                className="rounded-xl border border-[#1e1e2a] bg-[#111118] p-6 transition-all hover:border-[color:var(--hover-color)]"
+                style={{ "--hover-color": `${item.color}30` } as React.CSSProperties}
+              >
+                <div
+                  className="mb-4 inline-flex rounded-lg p-2.5"
+                  style={{ backgroundColor: `${item.color}10`, color: item.color }}
+                >
+                  <item.icon className="size-5" />
+                </div>
+                <h3 className="text-lg font-semibold text-[#e8e8ed] mb-2">{item.title}</h3>
+                <p className="text-sm text-[#6b6b80] leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Trust Scoring */}
+      <section className="py-20 border-t border-[#1e1e2a]">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-[#e8e8ed] flex items-center justify-center gap-3">
+              <BarChart3 className="size-7 text-[#00f0ff]" />
+              Trust Scoring
+            </h2>
+            <p className="mt-3 text-[#6b6b80]">
+              A transparent, composable reputation formula. Max score: 100.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 max-w-5xl mx-auto">
+            {/* Score breakdown */}
+            <div className="rounded-xl border border-[#1e1e2a] bg-[#111118] p-6">
+              <h3 className="text-lg font-semibold text-[#e8e8ed] mb-6">Score Components</h3>
+              <div className="space-y-4">
+                {scoreComponents.map((comp) => (
+                  <div key={comp.label}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-sm text-[#a8a8b8]">{comp.label}</span>
+                      <span className="text-xs font-mono font-bold" style={{ color: comp.color }}>
+                        max {comp.max}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-[#1e1e2a] overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${comp.max}%`,
+                          backgroundColor: comp.color,
+                          opacity: 0.7,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 pt-4 border-t border-[#1e1e2a] flex items-center justify-between">
+                <span className="text-sm font-medium text-[#e8e8ed]">Total</span>
+                <span className="text-lg font-mono font-bold bg-gradient-to-r from-[#00f0ff] to-[#00ff88] bg-clip-text text-transparent">
+                  100
+                </span>
+              </div>
+            </div>
+
+            {/* Trust levels */}
+            <div className="rounded-xl border border-[#1e1e2a] bg-[#111118] p-6">
+              <h3 className="text-lg font-semibold text-[#e8e8ed] mb-6">Trust Levels</h3>
+              <div className="space-y-5">
+                {trustTiers.map((tier) => (
+                  <div key={tier.label}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: tier.color }}
+                        />
+                        <span className="text-sm font-medium text-[#e8e8ed]">{tier.label}</span>
+                      </div>
+                      <span className="text-xs font-mono text-[#6b6b80]">{tier.range}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-[#1e1e2a] overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: tier.width, backgroundColor: tier.color, opacity: 0.6 }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -476,96 +659,152 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Why AgentStamp */}
+      {/* SDK — Quick Start */}
       <section className="py-20 border-t border-[#1e1e2a]">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-[#e8e8ed]">Why AgentStamp?</h2>
-            <p className="mt-3 text-[#6b6b80]">Everything your agent needs to be trusted.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              {
-                icon: Shield,
-                title: "Cryptographic Identity",
-                desc: "Ed25519-signed certificates prove your agent exists. Verifiable by anyone, tamper-proof forever.",
-                color: "#00f0ff",
-              },
-              {
-                icon: Crown,
-                title: "Reputation Score",
-                desc: "0-100 reputation score based on endorsements, uptime, age, and tier. Build trust over time.",
-                color: "#ffaa00",
-              },
-              {
-                icon: Code,
-                title: "Developer-First",
-                desc: "REST API, MCP tools, TypeScript SDK, webhooks, and embeddable badges. Integrate in minutes.",
-                color: "#00ff88",
-              },
-            ].map((item) => (
-              <div
-                key={item.title}
-                className="rounded-xl border border-[#1e1e2a] bg-[#111118] p-6"
-              >
-                <div
-                  className="mb-4 inline-flex rounded-lg p-2.5"
-                  style={{ backgroundColor: `${item.color}10`, color: item.color }}
-                >
-                  <item.icon className="size-5" />
-                </div>
-                <h3 className="text-lg font-semibold text-[#e8e8ed] mb-2">{item.title}</h3>
-                <p className="text-sm text-[#6b6b80] leading-relaxed">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Quick Start Code Snippet */}
-      <section className="py-20 border-t border-[#1e1e2a]">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold text-[#e8e8ed]">Integrate in 3 Lines</h2>
+            <h2 className="text-3xl font-bold text-[#e8e8ed]">Developer SDK</h2>
             <p className="mt-3 text-[#6b6b80]">
-              Drop-in SDK to verify agents before they access your API.
+              Four integration patterns. Drop-in middleware, lifecycle management, delegation, and blind verification.
             </p>
           </div>
-          <div className="rounded-xl border border-[#1e1e2a] bg-[#0a0a12] overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#1e1e2a]">
-              <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-[#ff5f56]" />
-                <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
-                <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* requireStamp middleware */}
+            <div className="rounded-xl border border-[#1e1e2a] bg-[#0a0a12] overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#1e1e2a]">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
+                </div>
+                <span className="text-[10px] text-[#6b6b80] ml-2 font-mono">middleware.js</span>
               </div>
-              <span className="text-[10px] text-[#6b6b80] ml-2 font-mono">server.js</span>
+              <pre className="p-4 text-xs font-mono leading-relaxed overflow-x-auto">
+                <code>
+                  <span className="text-[#6b6b80]">{"// Gate API with stamp verification"}</span>{"\n"}
+                  <span className="text-[#c678dd]">import</span>{" "}
+                  <span className="text-[#e8e8ed]">{"{ "}</span>
+                  <span className="text-[#00f0ff]">requireStamp</span>
+                  <span className="text-[#e8e8ed]">{" }"}</span>{" "}
+                  <span className="text-[#c678dd]">from</span>{" "}
+                  <span className="text-[#98c379]">{`'agentstamp-verify'`}</span>
+                  <span className="text-[#e8e8ed]">;</span>{"\n\n"}
+                  <span className="text-[#e8e8ed]">app.</span>
+                  <span className="text-[#61afef]">use</span>
+                  <span className="text-[#e8e8ed]">(</span>
+                  <span className="text-[#98c379]">{`'/api'`}</span>
+                  <span className="text-[#e8e8ed]">, </span>
+                  <span className="text-[#00f0ff]">requireStamp</span>
+                  <span className="text-[#e8e8ed]">({"{ "}</span>
+                  <span className="text-[#e06c75]">minTier</span>
+                  <span className="text-[#e8e8ed]">: </span>
+                  <span className="text-[#98c379]">{`'silver'`}</span>
+                  <span className="text-[#e8e8ed]">{" }"}));</span>
+                </code>
+              </pre>
             </div>
-            <pre className="p-5 text-sm font-mono leading-relaxed overflow-x-auto">
-              <code>
-                <span className="text-[#6b6b80]">{"// npm install agentstamp-verify"}</span>{"\n"}
-                <span className="text-[#c678dd]">import</span>{" "}
-                <span className="text-[#e8e8ed]">{"{ "}</span>
-                <span className="text-[#00f0ff]">requireStamp</span>
-                <span className="text-[#e8e8ed]">{" }"}</span>{" "}
-                <span className="text-[#c678dd]">from</span>{" "}
-                <span className="text-[#98c379]">{`'agentstamp-verify/express'`}</span>
-                <span className="text-[#e8e8ed]">;</span>{"\n\n"}
-                <span className="text-[#6b6b80]">{"// Require verified agents on your API"}</span>{"\n"}
-                <span className="text-[#e8e8ed]">app.</span>
-                <span className="text-[#61afef]">use</span>
-                <span className="text-[#e8e8ed]">(</span>
-                <span className="text-[#98c379]">{`'/api'`}</span>
-                <span className="text-[#e8e8ed]">, </span>
-                <span className="text-[#00f0ff]">requireStamp</span>
-                <span className="text-[#e8e8ed]">({"{ "}</span>
-                <span className="text-[#e06c75]">minTier</span>
-                <span className="text-[#e8e8ed]">: </span>
-                <span className="text-[#98c379]">{`'bronze'`}</span>
-                <span className="text-[#e8e8ed]">{" }"}));</span>
-              </code>
-            </pre>
+
+            {/* Auto-lifecycle */}
+            <div className="rounded-xl border border-[#1e1e2a] bg-[#0a0a12] overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#1e1e2a]">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
+                </div>
+                <span className="text-[10px] text-[#6b6b80] ml-2 font-mono">lifecycle.js</span>
+              </div>
+              <pre className="p-4 text-xs font-mono leading-relaxed overflow-x-auto">
+                <code>
+                  <span className="text-[#6b6b80]">{"// Auto-register + heartbeat + renew"}</span>{"\n"}
+                  <span className="text-[#c678dd]">import</span>{" "}
+                  <span className="text-[#e8e8ed]">{"{ "}</span>
+                  <span className="text-[#00f0ff]">AgentLifecycle</span>
+                  <span className="text-[#e8e8ed]">{" }"}</span>{" "}
+                  <span className="text-[#c678dd]">from</span>{" "}
+                  <span className="text-[#98c379]">{`'agentstamp-verify'`}</span>
+                  <span className="text-[#e8e8ed]">;</span>{"\n\n"}
+                  <span className="text-[#c678dd]">const</span>{" "}
+                  <span className="text-[#e8e8ed]">agent = </span>
+                  <span className="text-[#c678dd]">new</span>{" "}
+                  <span className="text-[#00f0ff]">AgentLifecycle</span>
+                  <span className="text-[#e8e8ed]">(wallet);</span>{"\n"}
+                  <span className="text-[#c678dd]">await</span>{" "}
+                  <span className="text-[#e8e8ed]">agent.</span>
+                  <span className="text-[#61afef]">start</span>
+                  <span className="text-[#e8e8ed]">();</span>
+                  <span className="text-[#6b6b80]">{" // that's it"}</span>
+                </code>
+              </pre>
+            </div>
+
+            {/* Trust delegation */}
+            <div className="rounded-xl border border-[#1e1e2a] bg-[#0a0a12] overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#1e1e2a]">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
+                </div>
+                <span className="text-[10px] text-[#6b6b80] ml-2 font-mono">delegate.js</span>
+              </div>
+              <pre className="p-4 text-xs font-mono leading-relaxed overflow-x-auto">
+                <code>
+                  <span className="text-[#6b6b80]">{"// Vouch for a newcomer agent"}</span>{"\n"}
+                  <span className="text-[#c678dd]">await</span>{" "}
+                  <span className="text-[#e8e8ed]">client.</span>
+                  <span className="text-[#61afef]">delegate</span>
+                  <span className="text-[#e8e8ed]">({"{"}</span>{"\n"}
+                  <span className="text-[#e8e8ed]">{"  "}</span>
+                  <span className="text-[#e06c75]">from</span>
+                  <span className="text-[#e8e8ed]">: myWallet,</span>{"\n"}
+                  <span className="text-[#e8e8ed]">{"  "}</span>
+                  <span className="text-[#e06c75]">to</span>
+                  <span className="text-[#e8e8ed]">: newAgentWallet,</span>{"\n"}
+                  <span className="text-[#e8e8ed]">{"  "}</span>
+                  <span className="text-[#e06c75]">points</span>
+                  <span className="text-[#e8e8ed]">: </span>
+                  <span className="text-[#d19a66]">15</span>{"\n"}
+                  <span className="text-[#e8e8ed]">{"}"});</span>
+                </code>
+              </pre>
+            </div>
+
+            {/* Blind verification */}
+            <div className="rounded-xl border border-[#1e1e2a] bg-[#0a0a12] overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#1e1e2a]">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
+                </div>
+                <span className="text-[10px] text-[#6b6b80] ml-2 font-mono">blind-verify.js</span>
+              </div>
+              <pre className="p-4 text-xs font-mono leading-relaxed overflow-x-auto">
+                <code>
+                  <span className="text-[#6b6b80]">{"// Verify without exposing wallet"}</span>{"\n"}
+                  <span className="text-[#c678dd]">const</span>{" "}
+                  <span className="text-[#e8e8ed]">result = </span>
+                  <span className="text-[#c678dd]">await</span>{" "}
+                  <span className="text-[#e8e8ed]">client.</span>
+                  <span className="text-[#61afef]">blindVerify</span>
+                  <span className="text-[#e8e8ed]">({"{"}</span>{"\n"}
+                  <span className="text-[#e8e8ed]">{"  "}</span>
+                  <span className="text-[#e06c75]">token</span>
+                  <span className="text-[#e8e8ed]">: hmacToken,</span>{"\n"}
+                  <span className="text-[#e8e8ed]">{"  "}</span>
+                  <span className="text-[#e06c75]">minScore</span>
+                  <span className="text-[#e8e8ed]">: </span>
+                  <span className="text-[#d19a66]">50</span>{"\n"}
+                  <span className="text-[#e8e8ed]">{"}"});</span>{"\n"}
+                  <span className="text-[#6b6b80]">{"// { trusted: true, tier: 'established' }"}</span>
+                </code>
+              </pre>
+            </div>
           </div>
-          <div className="mt-6 flex items-center justify-center gap-6 text-xs text-[#6b6b80]">
+
+          <div className="mt-6 flex items-center justify-center gap-6 text-xs text-[#6b6b80] flex-wrap">
             <span className="flex items-center gap-1.5">
               <CheckCircle2 className="size-3 text-[#00ff88]" />
               Express &amp; Hono adapters
@@ -578,6 +817,68 @@ export default async function HomePage() {
               <CheckCircle2 className="size-3 text-[#00ff88]" />
               Fail-open mode
             </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="size-3 text-[#00ff88]" />
+              TypeScript-first
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Audit & Compliance */}
+      <section className="py-20 border-t border-[#1e1e2a]">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-[#e8e8ed] flex items-center justify-center gap-3">
+              <ShieldCheck className="size-7 text-[#00ff88]" />
+              Audit &amp; Compliance
+            </h2>
+            <p className="mt-3 text-[#6b6b80]">
+              Every action is verifiable. Every chain link is tamper-evident.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
+            {[
+              {
+                icon: Hash,
+                title: "Hash-Chained Log",
+                desc: "SHA-256 linked events form an append-only audit trail. Each entry references the previous hash.",
+                color: "#00f0ff",
+              },
+              {
+                icon: Lock,
+                title: "Tamper Detection",
+                desc: "Ed25519 signatures on every event. Break the chain, and the system detects it instantly.",
+                color: "#00ff88",
+              },
+              {
+                icon: FileSearch,
+                title: "Dual Query Paths",
+                desc: "Execution path for real-time trust. Compliance path for full forensic history. Separated by design.",
+                color: "#c084fc",
+              },
+              {
+                icon: ShieldCheck,
+                title: "Chain Verification",
+                desc: "Public endpoint to verify the full audit chain integrity. Any agent or auditor can validate.",
+                color: "#ffaa00",
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className="rounded-xl border border-[#1e1e2a] bg-[#111118] p-5"
+              >
+                <div
+                  className="mb-3 inline-flex rounded-lg p-2"
+                  style={{ backgroundColor: `${item.color}10`, color: item.color }}
+                >
+                  <item.icon className="size-4" />
+                </div>
+                <h3 className="text-sm font-semibold text-[#e8e8ed] mb-1.5">{item.title}</h3>
+                <p className="text-xs text-[#6b6b80] leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
