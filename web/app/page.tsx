@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Stamp, Database, Sparkles, ArrowRight, Zap, Shield, Globe, CheckCircle2, Code, Crown, Activity, Users, Award, Star, Clock, Rocket, Handshake, EyeOff, FileSearch, Bell, Lock, Hash, BarChart3, ShieldCheck } from "lucide-react";
+import { Stamp, Database, Sparkles, ArrowRight, Zap, Shield, Globe, CheckCircle2, Code, Crown, Activity, Users, Award, Star, Clock, Rocket, Handshake, EyeOff, FileSearch, Bell, Lock, Hash, BarChart3, ShieldCheck, Layers, Link2, ShieldAlert, Fingerprint } from "lucide-react";
 import type { StampStats, Agent, Wish } from "@/types";
 import { StatsSection } from "./StatsSection";
 
@@ -186,6 +186,24 @@ const trustCapabilities = [
     desc: "Webhook alerts fire on 5+ point trust changes. Never be surprised by a trusted agent going rogue.",
     color: "#00f0ff",
   },
+  {
+    icon: Layers,
+    title: "ERC-8004 Bridge",
+    desc: "Look up any on-chain ERC-8004 agent and get an AgentStamp trust score. Free, zero gas, instant.",
+    color: "#00ff88",
+  },
+  {
+    icon: Link2,
+    title: "Multi-Chain Wallets",
+    desc: "Link EVM and Solana wallets with dual-signature proof. Both wallets must sign to prevent hijacking.",
+    color: "#c084fc",
+  },
+  {
+    icon: ShieldAlert,
+    title: "Body-Bound Signatures",
+    desc: "Mutation requests bind the SHA-256 body hash into the signature. Prevents replay and tampering attacks.",
+    color: "#ffaa00",
+  },
 ];
 
 const trustTiers = [
@@ -207,7 +225,9 @@ const poweredBy = [
   { name: "x402", label: "x402 Protocol" },
   { name: "PayAI", label: "PayAI" },
   { name: "Base", label: "Base L2" },
+  { name: "Solana", label: "Solana" },
   { name: "USDC", label: "USDC" },
+  { name: "ERC-8004", label: "ERC-8004" },
 ];
 
 function getTimeAgo(timestamp: string): string {
@@ -248,9 +268,13 @@ export default async function HomePage() {
             Stamp your agent into existence.
           </p>
           <p className="mt-4 max-w-2xl mx-auto text-base sm:text-lg text-[#6b6b80]">
-            The decentralized certification layer for AI agents. Pay micro-fees via x402,
-            earn cryptographic trust stamps, and join the verifiable agent economy on Base.
+            The trust intelligence platform for AI agents. x402 micropayments, cryptographic
+            trust scoring, forensic audit trails, and ERC-8004 identity bridging.
           </p>
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-[#00f0ff]/20 bg-[#00f0ff]/5 px-4 py-1.5 text-xs text-[#00f0ff] font-medium">
+            <Sparkles className="size-3" />
+            v2.0.0 — Security hardened, ERC-8004 bridge, Python SDK
+          </div>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               href="/register"
@@ -327,6 +351,63 @@ export default async function HomePage() {
                 </Link>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* What's New in v2.0.0 */}
+      <section className="py-20 border-t border-[#1e1e2a]">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#00ff88]/20 bg-[#00ff88]/5 px-4 py-1.5 text-xs text-[#00ff88] font-medium mb-4">
+              NEW
+            </div>
+            <h2 className="text-3xl font-bold text-[#e8e8ed]">What&apos;s New in v2.0.0</h2>
+            <p className="mt-3 text-[#6b6b80]">
+              Security hardened. ERC-8004 compatible. Multi-chain ready.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
+            {[
+              {
+                icon: ShieldAlert,
+                title: "Security Hardened",
+                desc: "Body-bound signatures, dual-wallet proofs, DNS rebinding protection, per-session rate limits, and x402 replay detection.",
+                color: "#00ff88",
+              },
+              {
+                icon: Layers,
+                title: "ERC-8004 Bridge",
+                desc: "Look up any of 24K+ on-chain agents by ERC-8004 ID and get an AgentStamp trust score. Zero gas, free endpoint.",
+                color: "#00f0ff",
+              },
+              {
+                icon: Fingerprint,
+                title: "Dual-Wallet Proof",
+                desc: "Link wallets across chains with cryptographic proof of ownership. Both wallets must sign to prevent hijacking.",
+                color: "#c084fc",
+              },
+              {
+                icon: Link2,
+                title: "Python + TypeScript SDKs",
+                desc: "agentstamp-verify v1.3.0 on npm, agentstamp v1.2.0 on PyPI. Express, Hono, and Python integrations.",
+                color: "#ffaa00",
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className="rounded-xl border border-[#1e1e2a] bg-[#111118] p-5"
+              >
+                <div
+                  className="mb-3 inline-flex rounded-lg p-2"
+                  style={{ backgroundColor: `${item.color}10`, color: item.color }}
+                >
+                  <item.icon className="size-4" />
+                </div>
+                <h3 className="text-sm font-semibold text-[#e8e8ed] mb-1.5">{item.title}</h3>
+                <p className="text-xs text-[#6b6b80] leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -410,7 +491,7 @@ export default async function HomePage() {
                         <EventIcon className="size-3.5" />
                       </div>
                       <p className="text-sm text-[#a8a8b8] flex-1 truncate">{event.summary}</p>
-                      <span className="text-[10px] text-[#3a3a4a] flex-shrink-0 font-mono">{timeAgo}</span>
+                      <span className="text-[10px] text-[#3a3a4a] flex-shrink-0 font-mono" suppressHydrationWarning>{timeAgo}</span>
                     </div>
                   );
                 })}
@@ -461,7 +542,7 @@ export default async function HomePage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-[#e8e8ed]">Trust Intelligence</h2>
-            <p className="mt-3 text-[#6b6b80]">Nine capabilities that make agent trust computable.</p>
+            <p className="mt-3 text-[#6b6b80]">Twelve capabilities that make agent trust computable.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {trustCapabilities.map((item) => (
@@ -811,6 +892,10 @@ export default async function HomePage() {
             </span>
             <span className="flex items-center gap-1.5">
               <CheckCircle2 className="size-3 text-[#00ff88]" />
+              Python SDK on PyPI
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="size-3 text-[#00ff88]" />
               x402 compatible
             </span>
             <span className="flex items-center gap-1.5">
@@ -957,9 +1042,17 @@ export default async function HomePage() {
             >
               npm i agentstamp-verify
             </a>
+            <a
+              href="https://pypi.org/project/agentstamp/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg border border-[#1e1e2a] px-6 py-3 text-sm font-mono text-[#e8e8ed] transition-all hover:border-[#c084fc]/50 hover:text-[#c084fc]"
+            >
+              pip install agentstamp
+            </a>
           </div>
           <p className="mt-4 text-xs text-[#3a3a4a]">
-            No credit card &middot; No API key &middot; No sign-up &middot; SDK on npm
+            No credit card &middot; No API key &middot; No sign-up &middot; SDK on npm + PyPI
           </p>
         </div>
       </section>
