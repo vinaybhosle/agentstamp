@@ -2,11 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { getDb, resolvePrimaryWallet, getAllLinkedWallets } = require('../database');
 const { validateWalletAddress } = require('../utils/validators');
+const { requireSignature } = require('../middleware/walletSignature');
 
 const MAX_LINKS_PER_PRIMARY = 10;
 
 // POST /api/v1/wallet/link — Link a secondary wallet to the caller's primary
-router.post('/link', (req, res) => {
+router.post('/link', requireSignature({ required: true, action: 'wallet_link' }), (req, res) => {
   try {
     const primaryWallet = req.headers['x-wallet-address'] || req.body.wallet_address;
     const linkedWallet = req.body.linked_wallet;
@@ -110,7 +111,7 @@ router.post('/link', (req, res) => {
 });
 
 // POST /api/v1/wallet/unlink — Remove a linked wallet
-router.post('/unlink', (req, res) => {
+router.post('/unlink', requireSignature({ required: true, action: 'wallet_unlink' }), (req, res) => {
   try {
     const callerWallet = req.headers['x-wallet-address'] || req.body.wallet_address;
     const linkedWallet = req.body.linked_wallet;

@@ -245,6 +245,13 @@ function initialize() {
     // Column already exists — safe to ignore
   }
 
+  // Add wallet_verified column for cryptographic wallet ownership proof
+  try {
+    db.exec('ALTER TABLE agents ADD COLUMN wallet_verified INTEGER DEFAULT 0');
+  } catch (e) {
+    // Column already exists — safe to ignore
+  }
+
   return db;
 }
 

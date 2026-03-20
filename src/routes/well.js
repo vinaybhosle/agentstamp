@@ -5,9 +5,10 @@ const { generateWishId, generateTransactionId } = require('../utils/generateId')
 const { validateWish } = require('../utils/validators');
 const { generateInsights } = require('../insights');
 const { appendEvent } = require('../eventLog');
+const { requireSignature } = require('../middleware/walletSignature');
 
 // POST /api/v1/well/wish
-router.post('/wish', (req, res) => {
+router.post('/wish', requireSignature({ required: false, action: 'wish' }), (req, res) => {
   try {
     const validation = validateWish(req.body);
     if (!validation.valid) {
@@ -55,7 +56,7 @@ router.post('/wish', (req, res) => {
 });
 
 // POST /api/v1/well/grant/:wishId
-router.post('/grant/:wishId', (req, res) => {
+router.post('/grant/:wishId', requireSignature({ required: false, action: 'grant' }), (req, res) => {
   try {
     const db = getDb();
     const wish = db.prepare('SELECT * FROM wishes WHERE id = ?').get(req.params.wishId);

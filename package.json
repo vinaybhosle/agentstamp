@@ -35,13 +35,15 @@
     "@x402/fetch": "^2.6.0",
     "@x402/svm": "^2.6.0",
     "better-sqlite3": "^12.6.2",
+    "bs58": "^6.0.0",
     "cors": "^2.8.0",
     "dotenv": "^16.0.0",
     "ethers": "^6.16.0",
     "express": "^4.18.0",
     "express-rate-limit": "^7.0.0",
     "helmet": "^7.0.0",
-    "nanoid": "^3.3.0"
+    "nanoid": "^3.3.0",
+    "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
     "vitest": "^4.1.0"

@@ -3,11 +3,12 @@ const crypto = require('crypto');
 const router = express.Router();
 const { getDb } = require('../database');
 const { generateWebhookId } = require('../utils/generateId');
+const { requireSignature } = require('../middleware/walletSignature');
 
 const VALID_EVENTS = ['stamp_minted', 'stamp_expiring', 'endorsement_received', 'wish_granted', 'wish_matched', 'reputation_changed', 'agent_registered'];
 
 // POST /api/v1/webhooks/register — Register a webhook
-router.post('/register', (req, res) => {
+router.post('/register', requireSignature({ required: true, action: 'webhook_register' }), (req, res) => {
   try {
     const walletAddress = req.headers['x-wallet-address'] || req.body.wallet_address;
     if (!walletAddress) {
@@ -105,7 +106,7 @@ router.get('/', (req, res) => {
 });
 
 // DELETE /api/v1/webhooks/:id — Remove a webhook
-router.delete('/:id', (req, res) => {
+router.delete('/:id', requireSignature({ required: true, action: 'webhook_delete' }), (req, res) => {
   try {
     const walletAddress = req.headers['x-wallet-address'];
     if (!walletAddress) {

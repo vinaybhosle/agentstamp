@@ -15,6 +15,7 @@ const { getDb } = require('./database');
  */
 
 const TIER_SCORES = { free: 5, bronze: 10, silver: 20, gold: 30 };
+const WALLET_VERIFIED_BONUS = 5;
 
 // ─── Trust Score Decay ──────────────────────────────────────────────────────
 
@@ -245,6 +246,8 @@ function computeReputation(agentId) {
 
   const wishScore = Math.min(wishesGranted * 2, 5);
 
+  const walletVerifiedBonus = agent.wallet_verified ? WALLET_VERIFIED_BONUS : 0;
+
   // Apply trust score decay based on heartbeat recency
   const decayInfo = computeDecayInfo(agent);
   const decayedUptimeScore = uptimeScore * decayInfo.decay_multiplier;
@@ -252,7 +255,7 @@ function computeReputation(agentId) {
   // Compute cold-start momentum (replaces age_score)
   const momentum = computeMomentum(agent, db);
 
-  const rawScore = tierScore + endorsementScore + decayedUptimeScore + momentum.effective + wishScore - decayInfo.penalty;
+  const rawScore = tierScore + endorsementScore + decayedUptimeScore + momentum.effective + wishScore + walletVerifiedBonus - decayInfo.penalty;
   const score = clamp(0, 100, Math.round(rawScore));
 
   return {
@@ -264,6 +267,7 @@ function computeReputation(agentId) {
       uptime: Math.round(decayedUptimeScore * 10) / 10,
       momentum: Math.round(momentum.effective * 10) / 10,
       wishes: Math.round(wishScore),
+      wallet_verified: walletVerifiedBonus,
       decay_info: decayInfo,
     },
     factors: {
@@ -283,6 +287,7 @@ function computeReputation(agentId) {
       uptime: 20,
       momentum: 15,
       wishes: 5,
+      wallet_verified: 5,
     },
   };
 }

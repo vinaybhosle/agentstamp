@@ -9,7 +9,7 @@ const EVENT_TYPES = [
   'stamp_event', 'wallet_linked',
   'trust_decayed', 'reputation_changed',
   'trust_delegated', 'trust_revoked',
-  'blind_verified',
+  'blind_verified', 'wallet_verified',
 ];
 
 const EXECUTION_EVENTS = [
