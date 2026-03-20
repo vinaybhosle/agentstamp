@@ -8,7 +8,7 @@ const { appendEvent } = require('../eventLog');
 const { requireSignature } = require('../middleware/walletSignature');
 
 // POST /api/v1/well/wish
-router.post('/wish', requireSignature({ required: false, action: 'wish' }), (req, res) => {
+router.post('/wish', requireSignature({ required: true, action: 'wish' }), (req, res) => {
   try {
     const validation = validateWish(req.body);
     if (!validation.valid) {
@@ -56,7 +56,7 @@ router.post('/wish', requireSignature({ required: false, action: 'wish' }), (req
 });
 
 // POST /api/v1/well/grant/:wishId
-router.post('/grant/:wishId', requireSignature({ required: false, action: 'grant' }), (req, res) => {
+router.post('/grant/:wishId', requireSignature({ required: true, action: 'grant' }), (req, res) => {
   try {
     const db = getDb();
     const wish = db.prepare('SELECT * FROM wishes WHERE id = ?').get(req.params.wishId);
@@ -77,8 +77,8 @@ router.post('/grant/:wishId', requireSignature({ required: false, action: 'grant
 
     // Check if this wallet already granted this wish
     const existingGrant = db.prepare(
-      "SELECT id FROM transactions WHERE wallet_address = ? AND type = 'wish_grant' AND metadata LIKE ?"
-    ).get(granterWallet, `%${req.params.wishId}%`);
+      "SELECT id FROM transactions WHERE wallet_address = ? AND action = 'wish_grant' AND reference_id = ?"
+    ).get(granterWallet, req.params.wishId);
     if (existingGrant) {
       return res.status(409).json({ success: false, error: 'You have already granted this wish' });
     }

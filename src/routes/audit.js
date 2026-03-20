@@ -1,12 +1,22 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const { getDb, resolvePrimaryWallet } = require('../database');
 const { STAMP_EVENT_OUTCOMES } = require('../utils/validators');
 
+function timingSafeStringEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const key = process.env.AUTH_SECRET || process.env.ANALYTICS_KEY;
+  if (!key) return false; // fail-closed: no secret configured
+  const hashA = crypto.createHmac('sha256', key).update(a).digest();
+  const hashB = crypto.createHmac('sha256', key).update(b).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
+
 // Middleware: require wallet-based auth or admin key for sensitive audit endpoints
 function requireWalletOrAdmin(req, res, next) {
   const adminKey = process.env.ADMIN_KEY;
-  if (adminKey && req.headers['x-admin-key'] === adminKey) {
+  if (adminKey && req.headers['x-admin-key'] && timingSafeStringEqual(req.headers['x-admin-key'], adminKey)) {
     req.isAdmin = true;
     return next();
   }
@@ -111,8 +121,8 @@ router.get('/execution', requireWalletOrAdmin, (req, res) => {
       wallet_address: req.scopedWallet || req.query.wallet_address,
       since: req.query.since,
       until: req.query.until,
-      limit: parseInt(req.query.limit) || 50,
-      offset: parseInt(req.query.offset) || 0,
+      limit: parseInt(req.query.limit, 10) || 50,
+      offset: parseInt(req.query.offset, 10) || 0,
     };
     const result = queryEvents(filters);
     res.json({ success: true, ...result });
@@ -134,8 +144,8 @@ router.get('/compliance', requireWalletOrAdmin, (req, res) => {
       wallet_address: req.scopedWallet || req.query.wallet_address,
       since: req.query.since,
       until: req.query.until,
-      limit: parseInt(req.query.limit) || 50,
-      offset: parseInt(req.query.offset) || 0,
+      limit: parseInt(req.query.limit, 10) || 50,
+      offset: parseInt(req.query.offset, 10) || 0,
     };
     const result = queryEvents(filters);
     res.json({ success: true, ...result });

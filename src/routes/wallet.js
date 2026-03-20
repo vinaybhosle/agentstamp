@@ -3,10 +3,12 @@ const router = express.Router();
 const { getDb, resolvePrimaryWallet, getAllLinkedWallets } = require('../database');
 const { validateWalletAddress } = require('../utils/validators');
 const { requireSignature } = require('../middleware/walletSignature');
+const { verifyWalletSignature, buildSignatureMessage, TIMESTAMP_WINDOW_SECONDS } = require('../walletAuth');
 
 const MAX_LINKS_PER_PRIMARY = 10;
 
 // POST /api/v1/wallet/link — Link a secondary wallet to the caller's primary
+// Requires dual-wallet proof: primary wallet signature (via middleware) AND linked wallet signature (in body)
 router.post('/link', requireSignature({ required: true, action: 'wallet_link' }), (req, res) => {
   try {
     const primaryWallet = req.headers['x-wallet-address'] || req.body.wallet_address;
@@ -21,6 +23,36 @@ router.post('/link', requireSignature({ required: true, action: 'wallet_link' })
     const validation = validateWalletAddress(linkedWallet);
     if (!validation.valid) {
       return res.status(400).json({ success: false, error: `linked_wallet: ${validation.error}` });
+    }
+
+    // SECURITY: Require proof of ownership of the linked wallet
+    // The caller must provide a signature from the linked wallet to prevent hijacking
+    const linkedSignature = req.body.linked_wallet_signature;
+    const linkedTimestamp = req.body.linked_wallet_timestamp;
+
+    if (!linkedSignature || !linkedTimestamp) {
+      return res.status(401).json({
+        success: false,
+        error: 'linked_wallet_signature and linked_wallet_timestamp are required to prove ownership of the linked wallet',
+      });
+    }
+
+    const linkedTs = parseInt(linkedTimestamp, 10);
+    if (isNaN(linkedTs)) {
+      return res.status(401).json({ success: false, error: 'Invalid linked_wallet_timestamp' });
+    }
+    const now = Math.floor(Date.now() / 1000);
+    if (Math.abs(now - linkedTs) > TIMESTAMP_WINDOW_SECONDS) {
+      return res.status(401).json({ success: false, error: 'linked_wallet_timestamp expired' });
+    }
+
+    const linkedMessage = buildSignatureMessage('wallet_link', linkedTimestamp);
+    const linkedResult = verifyWalletSignature(linkedMessage, linkedSignature, linkedWallet);
+    if (!linkedResult.valid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid linked wallet signature — you must prove ownership of the wallet being linked',
+      });
     }
 
     // No self-links
@@ -165,6 +197,10 @@ router.post('/unlink', requireSignature({ required: true, action: 'wallet_unlink
 // GET /api/v1/wallet/links/:wallet — Public: view all linked wallets for an identity
 router.get('/links/:wallet', (req, res) => {
   try {
+    const walletCheck = validateWalletAddress(req.params.wallet);
+    if (!walletCheck.valid) {
+      return res.status(400).json({ success: false, error: 'Invalid wallet address format' });
+    }
     const walletInfo = getAllLinkedWallets(req.params.wallet);
 
     res.json({

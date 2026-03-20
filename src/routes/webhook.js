@@ -84,8 +84,8 @@ router.post('/register', requireSignature({ required: true, action: 'webhook_reg
   }
 });
 
-// GET /api/v1/webhooks — List webhooks for a wallet
-router.get('/', (req, res) => {
+// GET /api/v1/webhooks — List webhooks for a wallet (requires signature to prevent enumeration)
+router.get('/', requireSignature({ required: true, action: 'webhook_list' }), (req, res) => {
   try {
     const walletAddress = req.headers['x-wallet-address'];
     if (!walletAddress) {

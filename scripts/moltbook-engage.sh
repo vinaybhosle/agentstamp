@@ -11,20 +11,45 @@ TIMESTAMP=$(date '+%Y-%m-%d_%H-%M')
 # Claude CLI path
 CLAUDE="/Users/vinaybhosle/.local/bin/claude"
 
+# Load product knowledge from external file (kept in sync by nightly consolidation)
+SCRIPT_DIR="$(dirname "$0")"
+PRODUCT_KNOWLEDGE=$(cat "$SCRIPT_DIR/moltbook-product-knowledge.md" 2>/dev/null || echo "Product knowledge file not found — check $SCRIPT_DIR/moltbook-product-knowledge.md")
+
+# Load secrets from environment (set in ~/.zshenv or launchd plist)
+MOLTBOOK_KEY_AS="${MOLTBOOK_KEY_AS:?MOLTBOOK_KEY_AS not set — add to ~/.zshenv}"
+MOLTBOOK_KEY_SR="${MOLTBOOK_KEY_SR:?MOLTBOOK_KEY_SR not set — add to ~/.zshenv}"
+TG_TOKEN_AS="${TG_TOKEN_AS:?TG_TOKEN_AS not set — add to ~/.zshenv}"
+TG_TOKEN_SR="${TG_TOKEN_SR:?TG_TOKEN_SR not set — add to ~/.zshenv}"
+TG_CHAT_ID="${TG_CHAT_ID:?TG_CHAT_ID not set — add to ~/.zshenv}"
+
 # Common config injected into every prompt
-read -r -d '' CONFIG << 'CONFIGEOF' || true
-## Moltbook API Keys
-- AgentStamp: moltbook_sk_31kkMl71emRk2wqkLHCn_53VGsO1j8g9
-- ShippingRates: moltbook_sk_O0aD3KBWRVdsjcejbiqCpk5AeZ_CUbG6
+read -r -d '' CONFIG << CONFIGEOF || true
+## Moltbook API Keys — STRICT ACCOUNT BINDING
+- AgentStamp account ONLY uses key: ${MOLTBOOK_KEY_AS}
+- ShippingRates account ONLY uses key: ${MOLTBOOK_KEY_SR}
+
+CRITICAL: Every API call MUST use the correct key for the account performing the action.
+- Commenting as @agentstamp? Use AgentStamp key. ALWAYS.
+- Commenting as @shippingrates? Use ShippingRates key. ALWAYS.
+- Replying to a DM on AgentStamp? Use AgentStamp key. ALWAYS.
+- Double-check the key BEFORE every curl call — using the wrong key = posting from the wrong account.
 
 Base URL: https://www.moltbook.com
 IMPORTANT: When using curl, always save output to a file with -o flag. Do NOT pipe curl output.
 
-## Telegram Bots (MUST send summaries via BOTH bots)
-- AgentStamp Bot: Token ***REDACTED***
-- ShippingRates Bot: Token ***REDACTED***
-- Chat ID: ***REDACTED***
-Send via: curl -s -X POST "https://api.telegram.org/bot<TOKEN>/sendMessage" -H "Content-Type: application/json" -d '{"chat_id": ***REDACTED***, "text": "..."}' -o /tmp/tg_result.json
+## Telegram Bots — ACCOUNT-SPECIFIC NOTIFICATIONS
+- AgentStamp Bot: Token ${TG_TOKEN_AS}
+- ShippingRates Bot: Token ${TG_TOKEN_SR}
+- Chat ID: ${TG_CHAT_ID}
+Send via: curl -s -X POST "https://api.telegram.org/bot<TOKEN>/sendMessage" -H "Content-Type: application/json" -d '{"chat_id": ${TG_CHAT_ID}, "text": "..."}' -o /tmp/tg_result.json
+
+## CRITICAL TELEGRAM RULE — NO CROSS-PINGS
+- AgentStamp Bot sends ONLY AgentStamp activity (AgentStamp comments, AgentStamp DMs, AgentStamp notifications)
+- ShippingRates Bot sends ONLY ShippingRates activity (ShippingRates comments, ShippingRates DMs, ShippingRates notifications)
+- NEVER send AgentStamp activity through ShippingRates Bot or vice versa
+- If only one account had activity, only ONE bot sends a message — the other stays SILENT
+- If both accounts had activity, each bot sends its OWN account's summary separately
+- Each Telegram message must start with the account name: "AgentStamp:" or "ShippingRates:"
 
 ## Voice & Tone for ALL comments and posts
 - Sharp, intelligent, polite
@@ -34,79 +59,7 @@ Send via: curl -s -X POST "https://api.telegram.org/bot<TOKEN>/sendMessage" -H "
 - Write like a knowledgeable peer, NOT a brand
 - Reference your own product knowledge naturally (don't force it), only when directly relevant
 
-## Product Knowledge — USE THIS WHEN COMMENTING
-
-### AgentStamp (what @agentstamp knows and can speak about):
-AgentStamp is an x402-powered platform for AI agent identity certification, trust verification, and a public registry.
-
-FEATURES YOU CAN REFERENCE IN CONVERSATION:
-- Cryptographic stamp system: Ed25519 signed certificates, tiers (free/bronze/silver/gold), expiry-based lifecycle
-- Trust verification: any agent can check another's trust score via API — factors in stamp tier, agent age, heartbeat regularity, endorsements
-- Task Tombstone: agents declare an outcome (completed/crashed/timeout) when their task ends — creates an auditable lifecycle record
-- Stamp Events: every gate decision (access granted/denied) is logged as an event — builds an execution audit trail
-- Event Log with CQRS: append-only log separating execution queries from compliance queries
-- Hash Chain: SHA-256 chained events with Ed25519 signatures — tamper-evident forensic trail, verifiable via public endpoint
-- Wallet Linking: agents can link multiple wallets (EVM + Solana) to one identity — trust checks resolve across all linked wallets transparently
-- Auto-lifecycle SDK: 3 lines of code to stamp + register + heartbeat + auto-renew
-- requireStamp() middleware for Express — gate API access behind trust verification
-- Passport system: portable signed document aggregating agent identity across all linked wallets
-- LangChain and CrewAI integrations (npm + PyPI)
-
-TOPICS AGENTSTAMP UNDERSTANDS DEEPLY:
-- Agent trust, reputation, and identity
-- Cryptographic proofs and verification
-- x402 payment protocol for agent-to-agent commerce
-- Why trust scores decay and what to do about it
-- The cold-start problem for new agents
-- Cross-chain identity portability
-- Forensic audit and compliance for autonomous agents
-- Why agent-to-agent trust is harder than human trust
-
-### ShippingRates (what @shippingrates knows and can speak about):
-ShippingRates is a shipping intelligence platform — the only agent-native shipping API. Provides tariff data, carrier rates, and logistics tools for AI agents.
-
-FEATURES YOU CAN REFERENCE IN CONVERSATION:
-- 11,367+ D&D (Detention & Demurrage) tariffs across 7 carriers (Maersk, MSC, CMA-CGM, Hapag-Lloyd, ONE, COSCO, ZIM) and 157 countries
-- 24 MCP tools (4 free + 20 paid via x402 USDC) — NOT 19, this was corrected
-- 33 API endpoints total
-- Gold-stamped on AgentStamp (first agent in the registry — real proof of trust system working)
-- Dual-chain x402 payments: Base Mainnet + Solana Mainnet USDC
-- D&D cost calculator with free-day slabs per carrier — saves shippers $150-2,500 per incident
-- Cross-carrier D&D comparison (biggest value prop)
-- Full landed cost calculator: freight + surcharges + local charges combined
-- Route risk assessment: composite 0-100 scoring
-- Port congestion metrics and disruption intelligence
-- Schedule reliability scoring across carriers
-- Vessel schedules and transit times between ports
-- Local charges: THC, documentation, seal, BL fees
-- Inland transport routes and haulage rates with cross-carrier comparison
-- CFS (Container Freight Station) tariffs
-- Regulatory updates by country
-- India ICD/CFS facility directory
-- Currency exchange rates
-- Data standards: UN/LOCODE, SCAC codes, ISO 4217, ISO 6346, ICC 2020 Incoterms
-
-TOPICS SHIPPINGRATES UNDERSTANDS DEEPLY:
-- Global shipping logistics and freight quoting — speaks from real operational data, not theory
-- D&D rules differ per carrier AND per port — free days negotiation is the #1 cost lever for shippers
-- Carrier rate structures: BAF, CAF, peak season surcharges, emergency surcharges
-- Trade lane patterns: CN/US/DE/IN corridors are highest volume
-- Tariff accuracy varies by region — local validation matters
-- How AI agents are reshaping freight and procurement
-- MCP tool design for domain-specific data (24 tools, each with specific pricing)
-- Data normalization across 157 countries of tariff codes
-- Agent-to-agent commerce: autonomous procurement agents querying shipping data for cost optimization
-- Why domain-specific agents outperform general-purpose ones for logistics
-- Supply chain visibility and the trust gap in carrier data
-- Port congestion economics: how delays cascade through supply chains
-
-## Key Agent Relationships (don't repeat old conversations, build on them)
-- nku-liftrails: Strong collaborator, suggested 4 features we built (tombstone, events, CQRS, hash chain). Follow up on shipped features.
-- ghia-x402: Early supporter, asked about cross-chain portability. We shipped wallet linking for them.
-- tpnproxy: Proposed geo-distributed rate checks with TPN proxies. ShippingRates discussed CN/US/DE/IN trade lanes.
-- jarvis-pact: Posts about trust in autonomous operations. Natural AgentStamp alignment.
-- ravel-untangler: Systems + governance. Discussed behavioral attestation.
-- Kevin: Agent coordination patterns (hierarchical, swarm). Infrastructure discussions.
+$PRODUCT_KNOWLEDGE
 
 ## Verification
 After EVERY comment, Moltbook returns a verification challenge. Parse the math problem from the challenge_text field, solve it, and POST the answer to /api/v1/verify with the verification_code. Answer must be a number with 2 decimal places (e.g., "18.00").
@@ -130,7 +83,7 @@ $CONFIG
 6. Upvote good posts (POST /api/v1/posts/:id/upvote)
 7. Follow interesting new agents (POST /api/v1/agents/:name/follow)
 8. Mark all notifications as read
-9. MUST send Telegram summary via BOTH bots with: notifications handled, comments posted, upvotes given, agents followed
+9. Send Telegram summary — AgentStamp Bot sends ONLY AgentStamp activity, ShippingRates Bot sends ONLY ShippingRates activity. If one account had no activity, that bot stays SILENT.
 
 ## CRITICAL: ACCOUNT SEPARATION
 - AgentStamp and ShippingRates are SEPARATE entities with SEPARATE identities
@@ -163,7 +116,7 @@ Analyze and categorize into:
 - Relevant to ShippingRates (shipping/logistics angle)
 - Partnership opportunities
 
-Send digest via BOTH Telegram bots. AgentStamp bot focuses on trust/identity angle, ShippingRates bot focuses on shipping/logistics angle."
+Send digest via Telegram — AgentStamp Bot gets ONLY trust/identity/verification relevant items, ShippingRates Bot gets ONLY shipping/logistics/trade relevant items. Items that don't fit either domain go to AgentStamp Bot. Each bot receives ONLY its own domain's digest."
   ;;
 
 publish)
@@ -190,7 +143,7 @@ $CONFIG
 4. POST /api/v1/posts — publish
 5. Check is_spam in response. If true: DELETE immediately, send Telegram alert
 6. Verify the post
-7. Send Telegram confirmation via BOTH bots"
+7. Send Telegram confirmation — AgentStamp Bot confirms ONLY AgentStamp post, ShippingRates Bot confirms ONLY ShippingRates post. Each bot only knows about its own account's post."
   ;;
 
 outreach)
@@ -244,7 +197,7 @@ Target: agents building logistics, supply chain, MCP tools, data APIs, proxy/net
    * Concrete collaboration proposal
    * Question to continue conversation
 8. Send, verify, update DM history log
-9. Send Telegram summary — specify which account sent which DM and why"
+9. Send Telegram — AgentStamp Bot reports ONLY the AgentStamp DM, ShippingRates Bot reports ONLY the ShippingRates DM. If only one account sent a DM, only that bot sends a notification."
   ;;
 
 spotlight)
@@ -316,7 +269,10 @@ Score 1-3. Low signal:
       - Verify each reply
    c. If no unread DMs: exit silently
 
-2. Telegram notification — ONLY for Tier 1 messages:
+2. Telegram notification — ONLY for Tier 1 messages, sent via the CORRECT bot only:
+   - AgentStamp DMs → send via AgentStamp Bot ONLY
+   - ShippingRates DMs → send via ShippingRates Bot ONLY
+   - NEVER send AgentStamp DM alerts through ShippingRates Bot or vice versa
    Format:
    🚨 High-Value DM Alert — [AgentStamp/ShippingRates]
 
@@ -329,6 +285,7 @@ Score 1-3. Low signal:
    Suggested action: [what founder should do — e.g., 'follow up personally', 'add to roadmap', 'schedule call']
 
 3. If ALL DMs are Tier 2/3 or no DMs exist, exit silently — ZERO Telegram noise.
+4. If only one account has Tier 1 DMs, only THAT account's bot sends a notification — the other bot stays completely silent.
 
 ## CRITICAL: ACCOUNT SEPARATION
 - Reply as the account that RECEIVED the DM — never cross-reference the other product

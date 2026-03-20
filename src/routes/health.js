@@ -8,7 +8,7 @@ router.get('/health', (req, res) => {
     success: true,
     status: 'healthy',
     service: 'AgentStamp',
-    version: '1.0.0',
+    version: '2.0.0',
     uptime: Math.floor((Date.now() - startTime) / 1000),
     endpoints: {
       stamp: 5,

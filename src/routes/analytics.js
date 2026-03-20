@@ -9,8 +9,8 @@ const crypto = require('crypto');
 
 function timingSafeEqual(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string') return false;
-  // HMAC both values to produce fixed-length digests, avoiding length timing leaks
-  const key = 'agentstamp-compare';
+  const key = process.env.AUTH_SECRET || process.env.ANALYTICS_KEY;
+  if (!key) return false; // fail-closed: no secret configured
   const hashA = crypto.createHmac('sha256', key).update(a).digest();
   const hashB = crypto.createHmac('sha256', key).update(b).digest();
   return crypto.timingSafeEqual(hashA, hashB);
@@ -40,7 +40,7 @@ router.use(requireAnalyticsKey);
 router.get('/dashboard', (req, res) => {
   try {
     const db = getDb();
-    const days = parseInt(req.query.days) || 30;
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
     const now = new Date();
     const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
@@ -178,10 +178,11 @@ router.get('/dashboard', (req, res) => {
     ).all(startDate);
 
     // ===================== REPUTATION =====================
-    const allAgents = db.prepare('SELECT id, name FROM agents').all();
+    const allAgents = db.prepare('SELECT id, name, last_reputation_score FROM agents').all();
     const repScores = allAgents.map(a => {
-      const rep = computeReputation(a.id);
-      return { agent_id: a.id, name: a.name, score: rep ? rep.score : 0, label: rep ? rep.tier_label : 'new' };
+      const score = a.last_reputation_score || 0;
+      const label = score > 75 ? 'elite' : score > 50 ? 'established' : score > 25 ? 'emerging' : 'new';
+      return { agent_id: a.id, name: a.name, score, label };
     });
     const repAvg = repScores.length > 0
       ? repScores.reduce((sum, r) => sum + r.score, 0) / repScores.length

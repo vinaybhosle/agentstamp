@@ -13,7 +13,7 @@ const { generateInsights } = require('./insights');
 function createMcpServer() {
   const server = new McpServer({
     name: 'AgentStamp',
-    version: '1.0.0',
+    version: '2.0.0',
   });
 
   // --- Tool: search_agents ---
@@ -367,6 +367,127 @@ function createMcpServer() {
     }
   );
 
+  // --- Tool: bridge_erc8004_lookup ---
+  server.tool(
+    'bridge_erc8004_lookup',
+    'Look up an ERC-8004 on-chain agent and get their AgentStamp trust score. Free. Returns on-chain identity + trust verdict.',
+    {
+      erc8004_agent_id: z.string().regex(/^\d+$/, 'Must be a numeric token ID').describe('ERC-8004 agent ID (numeric token ID from the Identity Registry)'),
+    },
+    async ({ erc8004_agent_id }) => {
+      try {
+        const { getFullAgent } = require('./erc8004');
+        const { getDb } = require('./database');
+        const db = getDb();
+
+        const onChain = await getFullAgent(erc8004_agent_id);
+        if (!onChain.found) {
+          return { content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'Agent not found in ERC-8004 registry' }, null, 2) }] };
+        }
+
+        const link = db.prepare('SELECT * FROM erc8004_links WHERE erc8004_agent_id = ?').get(erc8004_agent_id);
+
+        const result = {
+          success: true,
+          erc8004: {
+            agent_id: onChain.agentId,
+            owner: onChain.owner,
+            agent_wallet: onChain.agentWallet,
+            registration: onChain.registration,
+          },
+          agentstamp_linked: !!link,
+          agentstamp_wallet: link?.agentstamp_wallet || null,
+          trust_check_url: `https://agentstamp.org/api/v1/trust/check/erc8004:${erc8004_agent_id}`,
+          link_url: link ? null : 'POST https://agentstamp.org/api/v1/bridge/erc8004/link',
+        };
+
+        if (link) {
+          const agent = db.prepare("SELECT id, name FROM agents WHERE wallet_address = ? AND status = 'active' LIMIT 1").get(link.agentstamp_wallet);
+          if (agent) {
+            const rep = computeReputation(agent.id);
+            result.trust_score = rep?.score || 0;
+            result.trust_label = rep?.tier_label || 'new';
+          }
+        }
+
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      } catch (err) {
+        return { content: [{ type: 'text', text: JSON.stringify({ success: false, error: err.message }, null, 2) }] };
+      }
+    }
+  );
+
+  // --- Tool: bridge_erc8004_trust_check ---
+  server.tool(
+    'bridge_erc8004_trust_check',
+    'Get an AgentStamp trust verdict for an ERC-8004 agent. Free. Returns trusted/untrusted with score.',
+    {
+      erc8004_agent_id: z.string().regex(/^\d+$/, 'Must be a numeric token ID').describe('ERC-8004 agent ID (numeric token ID)'),
+    },
+    async ({ erc8004_agent_id }) => {
+      try {
+        const { getFullAgent } = require('./erc8004');
+        const { getDb, resolvePrimaryWallet, getAllLinkedWallets } = require('./database');
+        const { computeDelegationBonus } = require('./reputation');
+        const db = getDb();
+
+        // Check local link first
+        const link = db.prepare('SELECT agentstamp_wallet FROM erc8004_links WHERE erc8004_agent_id = ?').get(erc8004_agent_id);
+        let wallet;
+
+        if (link) {
+          wallet = link.agentstamp_wallet;
+        } else {
+          // Resolve from on-chain
+          const onChain = await getFullAgent(erc8004_agent_id);
+          if (!onChain.found) {
+            return { content: [{ type: 'text', text: JSON.stringify({ trusted: false, score: 0, error: 'Agent not found in ERC-8004 registry' }, null, 2) }] };
+          }
+          wallet = onChain.agentWallet || onChain.owner;
+        }
+
+        const resolvedWallet = resolvePrimaryWallet(wallet);
+        const walletInfo = getAllLinkedWallets(resolvedWallet);
+        const allWallets = walletInfo.all;
+        if (allWallets.length === 0) {
+          return { content: [{ type: 'text', text: JSON.stringify({ trusted: false, score: 0, label: 'unknown' }, null, 2) }] };
+        }
+
+        const ph = allWallets.map(() => '?').join(',');
+        const agent = db.prepare(
+          `SELECT id, name, category, endorsement_count, status, wallet_verified FROM agents WHERE wallet_address IN (${ph}) AND status = 'active' ORDER BY registered_at ASC LIMIT 1`
+        ).get(...allWallets);
+
+        const stamp = db.prepare(
+          `SELECT id, tier, expires_at FROM stamps WHERE wallet_address IN (${ph}) AND revoked = 0 AND expires_at > datetime('now') ORDER BY CASE tier WHEN 'gold' THEN 1 WHEN 'silver' THEN 2 WHEN 'bronze' THEN 3 WHEN 'free' THEN 4 ELSE 5 END LIMIT 1`
+        ).get(...allWallets);
+
+        let reputation = { score: 0, tier_label: 'new' };
+        if (agent) {
+          const rep = computeReputation(agent.id);
+          if (rep) reputation = rep;
+        }
+
+        const delegationBonus = computeDelegationBonus(resolvedWallet, db);
+        const trusted = reputation.score >= 10 || !!stamp || delegationBonus.bonus > 0;
+
+        const result = {
+          trusted,
+          score: reputation.score,
+          label: reputation.tier_label,
+          tier: stamp?.tier || 'none',
+          erc8004_agent_id,
+          agent: agent ? { id: agent.id, name: agent.name, category: agent.category, endorsements: agent.endorsement_count } : null,
+          stamp: stamp ? { id: stamp.id, tier: stamp.tier, expires_at: stamp.expires_at } : null,
+        };
+
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      } catch (err) {
+        return { content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'ERC-8004 trust check failed' }, null, 2) }] };
+      }
+    }
+  );
+
   return server;
 }
 
@@ -377,9 +498,11 @@ function createMcpServer() {
 // Session limits — prevent unbounded memory growth (DoS vector)
 const MAX_SESSIONS = 1000;
 const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const SESSION_RATE_LIMIT_MAX = 60; // max requests per session per minute
+const SESSION_RATE_LIMIT_WINDOW_MS = 60_000;
 
 function mountMcpOnExpress(app, path = '/mcp') {
-  // Map of sessionId -> { server, transport, lastActivity }
+  // Map of sessionId -> { server, transport, lastActivity, rateLimit: { count, windowStart } }
   const sessions = new Map();
 
   // Periodic cleanup of idle sessions (every 5 minutes)
@@ -399,9 +522,21 @@ function mountMcpOnExpress(app, path = '/mcp') {
       const sessionId = req.headers['mcp-session-id'];
 
       if (sessionId && sessions.has(sessionId)) {
-        // Existing session — forward message to its transport
+        // Existing session — check per-session rate limit then forward
         const session = sessions.get(sessionId);
-        session.lastActivity = Date.now();
+        const now = Date.now();
+
+        // Per-session rate limiting
+        if (now - session.rateLimit.windowStart > SESSION_RATE_LIMIT_WINDOW_MS) {
+          session.rateLimit = { count: 1, windowStart: now };
+        } else {
+          session.rateLimit.count += 1;
+          if (session.rateLimit.count > SESSION_RATE_LIMIT_MAX) {
+            return res.status(429).json({ error: `Rate limit exceeded: max ${SESSION_RATE_LIMIT_MAX} requests per minute per session` });
+          }
+        }
+
+        session.lastActivity = now;
         await session.transport.handleRequest(req, res);
       } else {
         // Enforce session cap — reject new sessions when at capacity
@@ -426,7 +561,12 @@ function mountMcpOnExpress(app, path = '/mcp') {
         await server.connect(transport);
 
         if (transport.sessionId) {
-          sessions.set(transport.sessionId, { server, transport, lastActivity: Date.now() });
+          sessions.set(transport.sessionId, {
+            server,
+            transport,
+            lastActivity: Date.now(),
+            rateLimit: { count: 1, windowStart: Date.now() },
+          });
         }
 
         await transport.handleRequest(req, res);

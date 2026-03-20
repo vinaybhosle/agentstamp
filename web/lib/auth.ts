@@ -47,7 +47,8 @@ export function validatePassword(password: string): boolean {
   if (!expected) return false;
   try {
     // HMAC both to fixed-length digests — avoids length timing leak
-    const key = "agentstamp-compare";
+    const key = process.env.AUTH_SECRET || process.env.ANALYTICS_KEY;
+    if (!key) return false; // fail-closed: no secret configured
     const hashA = createHmac("sha256", key).update(password).digest();
     const hashB = createHmac("sha256", key).update(expected).digest();
     return timingSafeEqual(hashA, hashB);

@@ -1,4 +1,4 @@
-const { verifyWalletSignature, buildSignatureMessage, TIMESTAMP_WINDOW_SECONDS } = require('../walletAuth');
+const { verifyWalletSignature, buildSignatureMessage, hashRequestBody, TIMESTAMP_WINDOW_SECONDS } = require('../walletAuth');
 
 function requireSignature(options = {}) {
   const { required = false, action = 'unknown' } = options;
@@ -39,8 +39,20 @@ function requireSignature(options = {}) {
       return res.status(401).json({ success: false, error: 'Wallet address required for signature verification' });
     }
 
-    const message = buildSignatureMessage(action, timestamp);
-    const result = verifyWalletSignature(message, signature, walletAddress);
+    // Bind signature to request body hash for mutation requests (prevents payload tampering)
+    const bodyHash = (req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE')
+      ? hashRequestBody(req.body)
+      : null;
+
+    // Try body-bound message first, then fall back to legacy format for backward compat
+    const message = buildSignatureMessage(action, timestamp, bodyHash);
+    let result = verifyWalletSignature(message, signature, walletAddress);
+
+    // Backward compatibility: if body-bound verification fails, try without body hash
+    if (!result.valid && bodyHash) {
+      const legacyMessage = buildSignatureMessage(action, timestamp);
+      result = verifyWalletSignature(legacyMessage, signature, walletAddress);
+    }
 
     if (!result.valid) {
       return res.status(401).json({

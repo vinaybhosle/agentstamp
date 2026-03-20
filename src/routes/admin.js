@@ -6,7 +6,8 @@ const { runFullReport } = require('../dataQualityChecks');
 
 function timingSafeEqual(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string') return false;
-  const key = 'agentstamp-compare';
+  const key = process.env.AUTH_SECRET || process.env.ANALYTICS_KEY;
+  if (!key) return false; // fail-closed: no secret configured
   const hashA = crypto.createHmac('sha256', key).update(a).digest();
   const hashB = crypto.createHmac('sha256', key).update(b).digest();
   return crypto.timingSafeEqual(hashA, hashB);

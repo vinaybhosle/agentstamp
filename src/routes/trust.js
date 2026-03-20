@@ -23,10 +23,49 @@ const { requireSignature } = require('../middleware/walletSignature');
  */
 
 // GET /api/v1/trust/check/:walletAddress — Single-call trust verdict (FREE)
-router.get('/check/:walletAddress', (req, res) => {
+// Also accepts erc8004:<agentId> format for ERC-8004 bridge lookups
+router.get('/check/:walletAddress', async (req, res) => {
   try {
     const db = getDb();
-    const inputWallet = req.params.walletAddress;
+    let inputWallet = req.params.walletAddress;
+
+    // Handle erc8004:<agentId> prefix — resolve to wallet via bridge
+    if (inputWallet.startsWith('erc8004:')) {
+      const erc8004Id = inputWallet.replace('erc8004:', '');
+      if (!/^\d+$/.test(erc8004Id)) {
+        return res.status(400).json({ success: false, error: 'Invalid ERC-8004 agent ID after erc8004: prefix. Must be numeric.' });
+      }
+
+      // Check local link first
+      const link = db.prepare('SELECT agentstamp_wallet FROM erc8004_links WHERE erc8004_agent_id = ?').get(erc8004Id);
+
+      if (link) {
+        inputWallet = link.agentstamp_wallet;
+      } else {
+        // Auto-resolve from on-chain — look up the ERC-8004 agent's wallet
+        try {
+          const { getFullAgent } = require('../erc8004');
+          const onChain = await getFullAgent(erc8004Id);
+          if (!onChain.found) {
+            return res.status(404).json({
+              success: false,
+              error: 'Agent not found in ERC-8004 registry',
+              erc8004_agent_id: erc8004Id,
+              action: { register: 'https://eips.ethereum.org/EIPS/eip-8004' },
+            });
+          }
+          // Use the on-chain wallet (owner or designated agent wallet)
+          inputWallet = onChain.agentWallet || onChain.owner;
+        } catch (err) {
+          console.error('ERC-8004 lookup error in trust check:', err.message);
+          return res.status(502).json({
+            success: false,
+            error: 'Could not resolve ERC-8004 agent ID. RPC may be unavailable.',
+          });
+        }
+      }
+    }
+
     const wallet = resolvePrimaryWallet(inputWallet);
     const wasResolved = wallet !== inputWallet;
 

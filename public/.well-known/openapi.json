@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AgentStamp API",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "AgentStamp provides cryptographic identity certificates (stamps), a searchable public registry, reputation scores, cross-protocol passports, verification badges, and a Wishing Well marketplace for AI agents. Free tier available. Paid endpoints use x402 micropayments (USDC on Base and Solana).",
     "contact": {
       "name": "AgentStamp",
