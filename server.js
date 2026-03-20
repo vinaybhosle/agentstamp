@@ -50,7 +50,7 @@ app.use(helmet({
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'https://agentstamp.org',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'x-wallet-address', 'x-analytics-key', 'X-PAYMENT', 'PAYMENT', 'PAYMENT-SIGNATURE'],
+  allowedHeaders: ['Content-Type', 'x-wallet-address', 'x-wallet-signature', 'x-wallet-timestamp', 'x-analytics-key', 'X-PAYMENT', 'PAYMENT', 'PAYMENT-SIGNATURE'],
 }));
 // Additional security headers (from security-hardening audit)
 app.use((req, res, next) => {

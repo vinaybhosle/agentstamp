@@ -7,6 +7,7 @@ const { validateStampMint, validateStampEvent, validateTombstone, validateBlindR
 const { appendEvent } = require('../eventLog');
 const { getAllLinkedWallets } = require('../database');
 const crypto = require('crypto');
+const { requireSignature } = require('../middleware/walletSignature');
 
 const TIER_CONFIG = {
   bronze: { price: '$0.001', validityHours: 24 },
@@ -27,7 +28,7 @@ function getExpiresAt(tier) {
 }
 
 // POST /api/v1/stamp/mint/free — Free 7-day stamp (no x402 payment required)
-router.post('/mint/free', (req, res) => {
+router.post('/mint/free', requireSignature({ required: false, action: 'mint' }), (req, res) => {
   try {
     const walletAddress = req.headers['x-wallet-address'] || req.body.wallet_address;
     if (!walletAddress || walletAddress === '0x0000000000000000000000000000000000000000') {
@@ -127,7 +128,7 @@ router.post('/mint/free', (req, res) => {
 });
 
 // POST /api/v1/stamp/mint/:tier
-router.post('/mint/:tier', (req, res) => {
+router.post('/mint/:tier', requireSignature({ required: false, action: 'mint' }), (req, res) => {
   try {
     const { tier } = req.params;
     if (!TIER_CONFIG[tier]) {
@@ -269,7 +270,7 @@ router.get('/stats', (req, res) => {
 });
 
 // POST /api/v1/stamp/event — Record a stamp verification event
-router.post('/event', (req, res) => {
+router.post('/event', requireSignature({ required: true, action: 'stamp_event' }), (req, res) => {
   try {
     // Authentication: require x-wallet-address header and verify it matches body
     const callerWallet = req.headers['x-wallet-address'];
@@ -322,7 +323,7 @@ router.post('/event', (req, res) => {
 });
 
 // POST /api/v1/stamp/:stampId/tombstone — Close a stamp's lifecycle
-router.post('/:stampId/tombstone', (req, res) => {
+router.post('/:stampId/tombstone', requireSignature({ required: true, action: 'tombstone' }), (req, res) => {
   try {
     const validation = validateTombstone(req.body);
     if (!validation.valid) {
@@ -389,7 +390,7 @@ router.post('/:stampId/tombstone', (req, res) => {
 });
 
 // POST /api/v1/stamp/blind-register — Register a blind verification token
-router.post('/blind-register', (req, res) => {
+router.post('/blind-register', requireSignature({ required: true, action: 'blind_register' }), (req, res) => {
   try {
     const validation = validateBlindRegister(req.body);
     if (!validation.valid) {

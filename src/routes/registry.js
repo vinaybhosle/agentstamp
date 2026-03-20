@@ -5,9 +5,10 @@ const { generateAgentId, generateEndorsementId, generateTransactionId } = requir
 const { validateAgentRegister, validateWalletAddress, sanitize } = require('../utils/validators');
 const { computeReputation } = require('../reputation');
 const { appendEvent } = require('../eventLog');
+const { requireSignature } = require('../middleware/walletSignature');
 
 // POST /api/v1/registry/register/free — Free 30-day agent registration
-router.post('/register/free', (req, res) => {
+router.post('/register/free', requireSignature({ required: false, action: 'register' }), (req, res) => {
   try {
     const walletAddress = req.headers['x-wallet-address'] || req.body.wallet_address;
     if (!walletAddress || walletAddress === '0x0000000000000000000000000000000000000000') {
@@ -103,7 +104,7 @@ router.post('/register/free', (req, res) => {
 });
 
 // POST /api/v1/registry/register
-router.post('/register', (req, res) => {
+router.post('/register', requireSignature({ required: false, action: 'register' }), (req, res) => {
   try {
     const validation = validateAgentRegister(req.body);
     if (!validation.valid) {
@@ -157,7 +158,7 @@ router.post('/register', (req, res) => {
 });
 
 // PUT /api/v1/registry/update/:agentId
-router.put('/update/:agentId', (req, res) => {
+router.put('/update/:agentId', requireSignature({ required: true, action: 'update' }), (req, res) => {
   try {
     const db = getDb();
     const agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(req.params.agentId);
@@ -213,7 +214,7 @@ router.put('/update/:agentId', (req, res) => {
 });
 
 // POST /api/v1/registry/endorse/:agentId
-router.post('/endorse/:agentId', (req, res) => {
+router.post('/endorse/:agentId', requireSignature({ required: false, action: 'endorse' }), (req, res) => {
   try {
     const db = getDb();
     const agent = db.prepare("SELECT * FROM agents WHERE id = ? AND status = 'active'").get(req.params.agentId);
@@ -539,7 +540,7 @@ router.get('/leaderboard', (req, res) => {
 });
 
 // POST /api/v1/registry/heartbeat/:agentId
-router.post('/heartbeat/:agentId', (req, res) => {
+router.post('/heartbeat/:agentId', requireSignature({ required: true, action: 'heartbeat' }), (req, res) => {
   try {
     const db = getDb();
     const agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(req.params.agentId);

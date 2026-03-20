@@ -9,6 +9,7 @@ const NETWORK_CACHE_TTL_MS = 60_000;
 const { validateDelegation } = require('../utils/validators');
 const { generateDelegationId } = require('../utils/generateId');
 const { appendEvent } = require('../eventLog');
+const { requireSignature } = require('../middleware/walletSignature');
 
 /**
  * Trust API — the "itch" hook.
@@ -41,7 +42,7 @@ router.get('/check/:walletAddress', (req, res) => {
 
     // Look up active agent across all linked wallets
     const agent = db.prepare(
-      `SELECT id, name, category, endorsement_count, status, registered_at FROM agents WHERE wallet_address IN (${placeholders}) AND status = 'active' ORDER BY registered_at ASC LIMIT 1`
+      `SELECT id, name, category, endorsement_count, status, registered_at, wallet_verified FROM agents WHERE wallet_address IN (${placeholders}) AND status = 'active' ORDER BY registered_at ASC LIMIT 1`
     ).get(...allWallets);
 
     // No stamp AND no agent = completely unknown
@@ -87,6 +88,7 @@ router.get('/check/:walletAddress', (req, res) => {
         category: agent.category,
         endorsements: agent.endorsement_count,
         registered_at: agent.registered_at,
+        wallet_verified: !!agent.wallet_verified,
         profile_url: `https://agentstamp.org/registry/${agent.id}`,
       } : null,
       stamp: stamp ? {
@@ -376,7 +378,7 @@ router.get('/pulse', (req, res) => {
 // ─── Trust Delegation Endpoints ─────────────────────────────────────────────
 
 // POST /api/v1/trust/delegate — Vouch for another agent
-router.post('/delegate', (req, res) => {
+router.post('/delegate', requireSignature({ required: true, action: 'delegate' }), (req, res) => {
   try {
     const db = getDb();
     const delegatorRaw = req.headers['x-wallet-address'];
@@ -482,7 +484,7 @@ router.post('/delegate', (req, res) => {
 });
 
 // DELETE /api/v1/trust/delegate/:delegateeWallet — Revoke a delegation
-router.delete('/delegate/:delegateeWallet', (req, res) => {
+router.delete('/delegate/:delegateeWallet', requireSignature({ required: true, action: 'revoke_delegation' }), (req, res) => {
   try {
     const db = getDb();
     const delegatorRaw = req.headers['x-wallet-address'];

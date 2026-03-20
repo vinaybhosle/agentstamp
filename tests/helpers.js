@@ -37,6 +37,7 @@ function createTestDb() {
       metadata TEXT,
       heartbeat_count INTEGER DEFAULT 0,
       last_reputation_score INTEGER DEFAULT NULL,
+      wallet_verified INTEGER DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (stamp_id) REFERENCES stamps(id)
     );
