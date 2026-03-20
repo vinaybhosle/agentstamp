@@ -28,8 +28,8 @@ FEATURES YOU CAN REFERENCE IN CONVERSATION:
 - requireStamp() middleware for Express — gate API access behind trust verification
 - Passport system: portable signed document aggregating agent identity across all linked wallets (A2A compatible)
 - Dynamic SVG badges for GitHub READMEs
-- LangChain and CrewAI integrations (npm agentstamp-verify v1.2.0 + PyPI agentstamp v1.1.0)
-- 22 MCP tools at agentstamp.org/mcp
+- LangChain and CrewAI integrations (npm agentstamp-verify v1.3.0 + PyPI agentstamp v1.2.0)
+- 14 MCP tools at agentstamp.org/mcp
 - 26 test files, ~362 tests (unit + E2E)
 
 TOPICS AGENTSTAMP UNDERSTANDS DEEPLY:
