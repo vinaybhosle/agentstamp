@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getDb, cleanupExpired, resolvePrimaryWallet } = require('../database');
 const { generateAgentId, generateEndorsementId, generateTransactionId } = require('../utils/generateId');
-const { validateAgentRegister, sanitize } = require('../utils/validators');
+const { validateAgentRegister, validateWalletAddress, sanitize } = require('../utils/validators');
 const { computeReputation } = require('../reputation');
 const { appendEvent } = require('../eventLog');
 
@@ -191,9 +191,13 @@ router.put('/update/:agentId', (req, res) => {
     if (req.body.endpoint_url) updates.endpoint_url = sanitize(req.body.endpoint_url);
     if (req.body.metadata) updates.metadata = JSON.stringify(req.body.metadata);
 
-    const setClauses = Object.keys(updates).map(k => `${k} = ?`).join(', ');
+    // Strict allowlist to prevent SQL injection via dynamic column names
+    const ALLOWED_UPDATE_COLS = new Set(['name', 'description', 'category', 'capabilities', 'protocols', 'endpoint_url', 'metadata']);
+    const safeKeys = Object.keys(updates).filter(k => ALLOWED_UPDATE_COLS.has(k));
+    const setClauses = safeKeys.map(k => `${k} = ?`).join(', ');
     if (setClauses) {
-      db.prepare(`UPDATE agents SET ${setClauses} WHERE id = ?`).run(...Object.values(updates), req.params.agentId);
+      const safeValues = safeKeys.map(k => updates[k]);
+      db.prepare(`UPDATE agents SET ${setClauses} WHERE id = ?`).run(...safeValues, req.params.agentId);
     }
 
     db.prepare(`
@@ -218,6 +222,12 @@ router.post('/endorse/:agentId', (req, res) => {
     }
 
     const endorserWallet = req.headers['x-wallet-address'] || req.body.wallet_address;
+
+    // Validate endorser wallet format
+    const walletCheck = validateWalletAddress(endorserWallet);
+    if (!walletCheck.valid) {
+      return res.status(400).json({ success: false, error: 'Invalid endorser wallet address' });
+    }
 
     const existing = db.prepare('SELECT id FROM endorsements WHERE endorser_wallet = ? AND agent_id = ?').get(endorserWallet, req.params.agentId);
     if (existing) {
@@ -545,6 +555,13 @@ router.post('/heartbeat/:agentId', (req, res) => {
     const resolvedHBOwner = resolvePrimaryWallet(agent.wallet_address);
     if (resolvedHBCaller !== resolvedHBOwner) {
       return res.status(403).json({ success: false, error: 'Only the registrant wallet (or a linked wallet) can send heartbeats' });
+    }
+
+    // Per-agent heartbeat cooldown: minimum 60 seconds between heartbeats
+    const MIN_HEARTBEAT_INTERVAL_MS = 60 * 1000;
+    const lastHBTime = agent.last_heartbeat ? new Date(agent.last_heartbeat).getTime() : 0;
+    if (Date.now() - lastHBTime < MIN_HEARTBEAT_INTERVAL_MS) {
+      return res.status(429).json({ success: false, error: 'Heartbeat too frequent. Minimum 1 minute between heartbeats.' });
     }
 
     const now = new Date().toISOString();

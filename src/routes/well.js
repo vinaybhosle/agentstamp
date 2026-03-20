@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getDb } = require('../database');
+const { getDb, resolvePrimaryWallet } = require('../database');
 const { generateWishId, generateTransactionId } = require('../utils/generateId');
 const { validateWish } = require('../utils/validators');
 const { generateInsights } = require('../insights');
@@ -64,6 +64,16 @@ router.post('/grant/:wishId', (req, res) => {
     }
 
     const granterWallet = req.headers['x-wallet-address'] || req.body.wallet_address;
+
+    // Prevent self-granting: resolve both wallets to primary before comparing
+    if (granterWallet && wish.wallet_address) {
+      const resolvedGranter = resolvePrimaryWallet(granterWallet);
+      const resolvedWisher = resolvePrimaryWallet(wish.wallet_address);
+      if (resolvedGranter === resolvedWisher) {
+        return res.status(400).json({ success: false, error: 'Cannot grant your own wish' });
+      }
+    }
+
     const now = new Date().toISOString();
 
     db.prepare(`

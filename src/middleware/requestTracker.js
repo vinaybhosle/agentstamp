@@ -25,7 +25,8 @@ function isBot(ua) {
 
 function hashIp(ip) {
   if (!ip) return 'unknown';
-  return crypto.createHash('sha256').update(ip + (process.env.IP_HASH_SALT || 'agentstamp-salt')).digest('hex').slice(0, 16);
+  const config = require('../config');
+  return crypto.createHash('sha256').update(ip + config.ipHashSalt).digest('hex').slice(0, 16);
 }
 
 function shouldSkip(path) {

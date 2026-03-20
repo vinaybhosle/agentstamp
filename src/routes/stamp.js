@@ -415,11 +415,8 @@ router.post('/blind-register', (req, res) => {
       return res.status(403).json({ success: false, error: 'Wallet mismatch' });
     }
 
-    const blindSecret = process.env.BLIND_TOKEN_SECRET;
-    if (!blindSecret) {
-      console.warn('WARNING: BLIND_TOKEN_SECRET is not set. Using fallback constant. Set this env var in production.');
-    }
-    const hmacKey = blindSecret || 'agentstamp-dev-blind-token-fallback';
+    const config = require('../config');
+    const hmacKey = config.blindTokenSecret;
     const token = crypto.createHmac('sha256', hmacKey)
       .update(req.body.wallet_address + req.body.nonce)
       .digest('hex');

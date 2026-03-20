@@ -2,6 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { getDb, resolvePrimaryWallet, getAllLinkedWallets } = require('../database');
 const { computeReputation, computeDelegationBonus, DELEGATION_MIN_SCORE, DELEGATION_MAX_OUTGOING, DELEGATION_MAX_DAYS } = require('../reputation');
+
+// ─── /network TTL cache (60s) ─────────────────────────────────────────────
+let _networkCache = { data: null, expiresAt: 0 };
+const NETWORK_CACHE_TTL_MS = 60_000;
 const { validateDelegation } = require('../utils/validators');
 const { generateDelegationId } = require('../utils/generateId');
 const { appendEvent } = require('../eventLog');
@@ -202,6 +206,11 @@ router.get('/compare', (req, res) => {
 // Shows social proof: how many agents, endorsements, stamps exist
 router.get('/network', (req, res) => {
   try {
+    // Return cached response if still fresh (60s TTL)
+    if (_networkCache.data && Date.now() < _networkCache.expiresAt) {
+      return res.json(_networkCache.data);
+    }
+
     const db = getDb();
 
     const agents = db.prepare("SELECT COUNT(*) as count FROM agents WHERE status = 'active'").get();
@@ -222,16 +231,12 @@ router.get('/network', (req, res) => {
       "SELECT category, COUNT(*) as count FROM agents WHERE status = 'active' AND category IS NOT NULL GROUP BY category ORDER BY count DESC LIMIT 5"
     ).all();
 
-    // Reputation distribution
-    const allAgents = db.prepare('SELECT id FROM agents').all();
-    let repSum = 0;
-    let repCount = 0;
-    allAgents.forEach(a => {
-      const rep = computeReputation(a.id);
-      if (rep) { repSum += rep.score; repCount++; }
-    });
+    // Reputation: use last_reputation_score column to avoid N+1 query
+    const avgRep = db.prepare(
+      "SELECT AVG(last_reputation_score) as avg_score, COUNT(*) as count FROM agents WHERE status = 'active' AND last_reputation_score IS NOT NULL"
+    ).get();
 
-    res.json({
+    const responseBody = {
       success: true,
       network: {
         active_agents: agents.count,
@@ -240,7 +245,7 @@ router.get('/network', (req, res) => {
         total_wishes: wishes.count,
         wishes_granted: wishesGranted.count,
         heartbeats: heartbeats.count,
-        average_reputation: repCount > 0 ? Math.round(repSum / repCount) : 0,
+        average_reputation: avgRep.count > 0 ? Math.round(avgRep.avg_score) : 0,
       },
       last_24h: {
         new_stamps: stampsToday.count,
@@ -250,7 +255,12 @@ router.get('/network', (req, res) => {
       top_categories: topCategories,
       message: `${agents.count} agents trust AgentStamp. Join them.`,
       register_url: 'https://agentstamp.org/register',
-    });
+    };
+
+    // Cache for 60 seconds
+    _networkCache = { data: responseBody, expiresAt: Date.now() + NETWORK_CACHE_TTL_MS };
+
+    res.json(responseBody);
   } catch (err) {
     console.error('Trust network error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
