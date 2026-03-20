@@ -8,6 +8,7 @@ const generateTransactionId = () => `txn_${nanoid(16)}`;
 const generateWebhookId = () => `whk_${nanoid(16)}`;
 const generateStampEventId = () => `sevt_${nanoid(16)}`;
 const generateEventId = () => `evt_${nanoid(16)}`;
+const generateDelegationId = () => `del_${nanoid(16)}`;
 
 module.exports = {
   generateStampId,
@@ -18,4 +19,5 @@ module.exports = {
   generateWebhookId,
   generateStampEventId,
   generateEventId,
+  generateDelegationId,
 };

@@ -36,6 +36,7 @@ function createTestDb() {
       expires_at TEXT NOT NULL,
       metadata TEXT,
       heartbeat_count INTEGER DEFAULT 0,
+      last_reputation_score INTEGER DEFAULT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (stamp_id) REFERENCES stamps(id)
     );
@@ -129,6 +130,20 @@ function createTestDb() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE trust_delegations (
+      id TEXT PRIMARY KEY,
+      delegator_wallet TEXT NOT NULL,
+      delegatee_wallet TEXT NOT NULL,
+      weight REAL NOT NULL DEFAULT 1.0,
+      reason TEXT,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(delegator_wallet, delegatee_wallet)
+    );
+    CREATE INDEX IF NOT EXISTS idx_delegations_delegator ON trust_delegations(delegator_wallet);
+    CREATE INDEX IF NOT EXISTS idx_delegations_delegatee ON trust_delegations(delegatee_wallet);
+    CREATE INDEX IF NOT EXISTS idx_delegations_expires ON trust_delegations(expires_at);
+
     CREATE TABLE event_log (
       id TEXT PRIMARY KEY,
       event_type TEXT NOT NULL,
@@ -141,6 +156,23 @@ function createTestDb() {
       signature TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE wallet_links (
+      primary_wallet TEXT NOT NULL,
+      linked_wallet TEXT NOT NULL UNIQUE,
+      chain_hint TEXT,
+      linked_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (primary_wallet, linked_wallet)
+    );
+    CREATE INDEX IF NOT EXISTS idx_wallet_links_primary ON wallet_links(primary_wallet);
+    CREATE INDEX IF NOT EXISTS idx_wallet_links_linked ON wallet_links(linked_wallet);
+
+    CREATE TABLE blind_tokens (
+      token TEXT PRIMARY KEY,
+      wallet_address TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_blind_tokens_wallet ON blind_tokens(wallet_address);
   `);
 
   return db;

@@ -237,6 +237,11 @@ router.post('/endorse/:agentId', (req, res) => {
 
     appendEvent('endorsement', { agent_id: req.params.agentId, endorser_wallet: endorserWallet });
 
+    try {
+      const { checkAndDispatchReputationChange } = require('../reputationMonitor');
+      checkAndDispatchReputationChange(req.params.agentId);
+    } catch (e) { /* best-effort */ }
+
     try { require('../webhookDispatcher').dispatch(agent.wallet_address, 'endorsement_received', { agent_id: req.params.agentId, endorser: endorserWallet }); } catch (e) { /* best-effort */ }
 
     res.status(201).json({ success: true, endorsement_id: endorsementId });
@@ -359,6 +364,147 @@ router.get('/agent/:agentId', (req, res) => {
   }
 });
 
+// ─── Leaderboard TTL cache (60s) ─────────────────────────────────────────────
+let _leaderboardCache = { data: null, expiresAt: 0, key: '' };
+const LEADERBOARD_TTL_MS = 60_000;
+
+// GET /api/v1/registry/leaderboard/live — Enhanced leaderboard with filters, network stats, trending
+router.get('/leaderboard/live', (req, res) => {
+  try {
+    const db = getDb();
+
+    // Parse filters
+    const category = req.query.category || null;
+    const tier = req.query.tier || null;
+    const trustedOnly = req.query.trusted_only === 'true';
+    const sort = req.query.sort || 'score';
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 50);
+
+    // Build a cache key from the query params
+    const cacheKey = `${category}|${tier}|${trustedOnly}|${sort}|${limit}`;
+    if (_leaderboardCache.data && _leaderboardCache.key === cacheKey && Date.now() < _leaderboardCache.expiresAt) {
+      return res.json(_leaderboardCache.data);
+    }
+
+    // Get all active agents, optionally filtered by category
+    let query = "SELECT * FROM agents WHERE status = 'active'";
+    const params = [];
+    if (category) {
+      query += ' AND category = ?';
+      params.push(category);
+    }
+    const agents = db.prepare(query).all(...params);
+
+    // Build a Map for O(1) agent lookups (fixes N+1 / O(n^2) in trending sort)
+    const agentMap = new Map(agents.map(a => [a.id, a]));
+
+    // Compute reputation for each agent
+    const enriched = agents.map(agent => {
+      const rep = computeReputation(agent.id);
+
+      // Count incoming delegations
+      const delegationCount = db.prepare(
+        "SELECT COUNT(*) as count FROM trust_delegations WHERE delegatee_wallet = ? AND expires_at > datetime('now')"
+      ).get(agent.wallet_address)?.count || 0;
+
+      // Score trend based on last_reputation_score
+      let scoreTrend = 'stable';
+      if (agent.last_reputation_score !== null && rep) {
+        const delta = rep.score - agent.last_reputation_score;
+        if (delta >= 3) scoreTrend = 'rising';
+        else if (delta <= -3) scoreTrend = 'falling';
+      }
+
+      return {
+        id: agent.id,
+        name: agent.name,
+        category: agent.category,
+        wallet_address: agent.wallet_address,
+        endorsement_count: agent.endorsement_count || 0,
+        heartbeat_count: agent.heartbeat_count || 0,
+        registered_at: agent.registered_at,
+        reputation: rep ? {
+          score: rep.score,
+          label: rep.label,
+          breakdown: rep.breakdown,
+        } : { score: 0, label: 'new', breakdown: {} },
+        delegations_received: delegationCount,
+        score_trend: scoreTrend,
+      };
+    });
+
+    // Apply tier filter
+    const afterTier = tier
+      ? enriched.filter(a => a.reputation.label === tier)
+      : enriched;
+
+    // Apply trusted-only filter (score >= 10)
+    const filtered = trustedOnly
+      ? afterTier.filter(a => a.reputation.score >= 10)
+      : afterTier;
+
+    // Sort
+    const sortFns = {
+      score: (a, b) => b.reputation.score - a.reputation.score,
+      endorsements: (a, b) => b.endorsement_count - a.endorsement_count,
+      uptime: (a, b) => (b.heartbeat_count || 0) - (a.heartbeat_count || 0),
+      newest: (a, b) => new Date(b.registered_at) - new Date(a.registered_at),
+    };
+    const sorted = [...filtered].sort(sortFns[sort] || sortFns.score);
+
+    // Trending: top 5 agents with biggest positive score change (O(1) Map lookup)
+    const trending = [...enriched]
+      .filter(a => a.score_trend === 'rising')
+      .sort((a, b) => {
+        const agentA = agentMap.get(a.id);
+        const agentB = agentMap.get(b.id);
+        const deltaA = a.reputation.score - (agentA?.last_reputation_score || 0);
+        const deltaB = b.reputation.score - (agentB?.last_reputation_score || 0);
+        return deltaB - deltaA;
+      })
+      .slice(0, 5);
+
+    // Network stats
+    const totalAgents = agents.length;
+    const avgScore = totalAgents > 0
+      ? Math.round(enriched.reduce((sum, a) => sum + a.reputation.score, 0) / totalAgents)
+      : 0;
+    const recentHeartbeats = db.prepare(
+      "SELECT COUNT(DISTINCT agent_id) as count FROM heartbeat_log WHERE recorded_at > datetime('now', '-1 day')"
+    ).get()?.count || 0;
+    const activePercent = totalAgents > 0
+      ? Math.round((recentHeartbeats / totalAgents) * 100)
+      : 0;
+    const totalDelegations = db.prepare(
+      "SELECT COUNT(*) as count FROM trust_delegations WHERE expires_at > datetime('now')"
+    ).get()?.count || 0;
+    const totalStamps = db.prepare(
+      "SELECT COUNT(*) as count FROM stamps WHERE revoked = 0 AND expires_at > datetime('now')"
+    ).get()?.count || 0;
+
+    const responseBody = {
+      success: true,
+      agents: sorted.slice(0, limit),
+      trending,
+      network: {
+        total_agents: totalAgents,
+        average_score: avgScore,
+        active_percent: activePercent,
+        total_delegations: totalDelegations,
+        total_stamps: totalStamps,
+      },
+    };
+
+    // Cache the response for 60 seconds
+    _leaderboardCache = { data: responseBody, expiresAt: Date.now() + LEADERBOARD_TTL_MS, key: cacheKey };
+
+    res.json(responseBody);
+  } catch (err) {
+    console.error('Registry leaderboard/live error:', err);
+    res.status(500).json({ success: false, error: 'Failed to load leaderboard' });
+  }
+});
+
 // GET /api/v1/registry/leaderboard
 router.get('/leaderboard', (req, res) => {
   try {
@@ -406,6 +552,11 @@ router.post('/heartbeat/:agentId', (req, res) => {
     db.prepare('INSERT INTO heartbeat_log (agent_id, recorded_at) VALUES (?, ?)').run(req.params.agentId, now);
 
     appendEvent('heartbeat', { agent_id: req.params.agentId });
+
+    try {
+      const { checkAndDispatchReputationChange } = require('../reputationMonitor');
+      checkAndDispatchReputationChange(req.params.agentId);
+    } catch (e) { /* best-effort */ }
 
     const updated = db.prepare('SELECT heartbeat_count FROM agents WHERE id = ?').get(req.params.agentId);
 
