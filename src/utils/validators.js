@@ -148,6 +148,42 @@ function validateTombstone(body) {
   return errors.length > 0 ? { valid: false, errors } : { valid: true };
 }
 
+function validateBlindRegister(body) {
+  if (!body.wallet_address) return { valid: false, error: 'wallet_address is required' };
+  const walletCheck = validateWalletAddress(body.wallet_address);
+  if (!walletCheck.valid) return { valid: false, error: 'Invalid wallet address' };
+  if (!body.nonce || typeof body.nonce !== 'string') return { valid: false, error: 'nonce is required and must be a string' };
+  if (body.nonce.length > 128) return { valid: false, error: 'nonce must be under 128 characters' };
+  return { valid: true };
+}
+
+function validateDelegation(body) {
+  if (!body.delegatee_wallet) {
+    return { valid: false, error: 'delegatee_wallet is required' };
+  }
+  const walletCheck = validateWalletAddress(body.delegatee_wallet);
+  if (!walletCheck.valid) {
+    return { valid: false, error: 'Invalid delegatee wallet address' };
+  }
+  if (body.weight !== undefined) {
+    const w = parseFloat(body.weight);
+    if (isNaN(w) || w < 0.1 || w > 1.0) {
+      return { valid: false, error: 'weight must be between 0.1 and 1.0' };
+    }
+  }
+  if (body.reason) {
+    if (typeof body.reason !== 'string') {
+      return { valid: false, error: 'reason must be a string' };
+    }
+    // Sanitize reason to strip HTML
+    body.reason = sanitize(body.reason);
+    if (body.reason.length > 500) {
+      return { valid: false, error: 'reason must be under 500 characters' };
+    }
+  }
+  return { valid: true };
+}
+
 module.exports = {
   AGENT_CATEGORIES,
   WISH_CATEGORIES,
@@ -161,4 +197,6 @@ module.exports = {
   validateWish,
   validateStampEvent,
   validateTombstone,
+  validateBlindRegister,
+  validateDelegation,
 };

@@ -3,8 +3,10 @@ const router = express.Router();
 const { getDb, cleanupExpired, resolvePrimaryWallet } = require('../database');
 const { signCertificate, verifyCertificate, getPublicKey } = require('../crypto');
 const { generateStampId, generateTransactionId, generateStampEventId } = require('../utils/generateId');
-const { validateStampMint, validateStampEvent, validateTombstone } = require('../utils/validators');
+const { validateStampMint, validateStampEvent, validateTombstone, validateBlindRegister } = require('../utils/validators');
 const { appendEvent } = require('../eventLog');
+const { getAllLinkedWallets } = require('../database');
+const crypto = require('crypto');
 
 const TIER_CONFIG = {
   bronze: { price: '$0.001', validityHours: 24 },
@@ -382,6 +384,115 @@ router.post('/:stampId/tombstone', (req, res) => {
     });
   } catch (err) {
     console.error('Stamp tombstone error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// POST /api/v1/stamp/blind-register — Register a blind verification token
+router.post('/blind-register', (req, res) => {
+  try {
+    const validation = validateBlindRegister(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, error: validation.error });
+    }
+
+    // Auth: require x-wallet-address header matching body
+    const callerWallet = req.headers['x-wallet-address'];
+    if (!callerWallet) {
+      return res.status(401).json({ success: false, error: 'x-wallet-address header required' });
+    }
+
+    // Validate header wallet format before comparing
+    const { validateWalletAddress } = require('../utils/validators');
+    const headerCheck = validateWalletAddress(callerWallet);
+    if (!headerCheck.valid) {
+      return res.status(400).json({ success: false, error: 'Invalid x-wallet-address header format' });
+    }
+
+    const resolvedCaller = resolvePrimaryWallet(callerWallet);
+    const resolvedBody = resolvePrimaryWallet(req.body.wallet_address);
+    if (resolvedCaller !== resolvedBody) {
+      return res.status(403).json({ success: false, error: 'Wallet mismatch' });
+    }
+
+    const blindSecret = process.env.BLIND_TOKEN_SECRET;
+    if (!blindSecret) {
+      console.warn('WARNING: BLIND_TOKEN_SECRET is not set. Using fallback constant. Set this env var in production.');
+    }
+    const hmacKey = blindSecret || 'agentstamp-dev-blind-token-fallback';
+    const token = crypto.createHmac('sha256', hmacKey)
+      .update(req.body.wallet_address + req.body.nonce)
+      .digest('hex');
+
+    const db = getDb();
+
+    // Check if token already exists to distinguish create vs replace
+    const existing = db.prepare('SELECT token FROM blind_tokens WHERE token = ?').get(token);
+
+    db.prepare(
+      "INSERT OR REPLACE INTO blind_tokens (token, wallet_address, created_at) VALUES (?, ?, datetime('now'))"
+    ).run(token, req.body.wallet_address);
+
+    const statusCode = existing ? 200 : 201;
+    res.status(statusCode).json({ success: true, token });
+  } catch (err) {
+    console.error('Blind register error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// GET /api/v1/stamp/verify-blind/:blindToken — Verify stamp via blind token (privacy-preserving)
+router.get('/verify-blind/:blindToken', (req, res) => {
+  try {
+    const db = getDb();
+    const tokenRow = db.prepare('SELECT * FROM blind_tokens WHERE token = ?').get(req.params.blindToken);
+    if (!tokenRow) {
+      return res.status(404).json({ success: false, error: 'Token not found' });
+    }
+
+    const wallet = tokenRow.wallet_address;
+
+    // Look up stamps for this wallet (use resolvePrimaryWallet + getAllLinkedWallets)
+    const primary = resolvePrimaryWallet(wallet);
+    const allWallets = getAllLinkedWallets(primary);
+    const walletList = allWallets.all || [primary];
+
+    // Find best active stamp across all wallets
+    const placeholders = walletList.map(() => '?').join(',');
+    const stamp = db.prepare(
+      `SELECT * FROM stamps WHERE wallet_address IN (${placeholders}) AND revoked = 0 AND expires_at > datetime('now') ORDER BY CASE tier WHEN 'gold' THEN 4 WHEN 'silver' THEN 3 WHEN 'bronze' THEN 2 ELSE 1 END DESC LIMIT 1`
+    ).get(...walletList);
+
+    // Get agent
+    const agent = db.prepare(
+      `SELECT * FROM agents WHERE wallet_address IN (${placeholders}) AND status = 'active' LIMIT 1`
+    ).get(...walletList);
+
+    // Compute reputation if agent exists
+    let reputationLabel = 'new';
+    let scoreRange = '0-25';
+    if (agent) {
+      const { computeReputation, getLabel: getRepLabel, getScoreRange } = require('../reputation');
+      const rep = computeReputation(agent.id);
+      if (rep) {
+        reputationLabel = rep.label;
+        scoreRange = getScoreRange(rep.score);
+      }
+    }
+
+    // Log blind verification event (internal audit — wallet IS logged in event_log)
+    appendEvent('blind_verified', { wallet_address: wallet, token: req.params.blindToken });
+
+    // Return stripped response — NO wallet, NO exact score, NO stamp_id
+    res.json({
+      success: true,
+      valid: !!stamp,
+      tier: stamp ? stamp.tier : null,
+      reputation_label: reputationLabel,
+      score_range: scoreRange,
+    });
+  } catch (err) {
+    console.error('Blind verify error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });

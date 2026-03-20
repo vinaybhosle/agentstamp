@@ -1,7 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { getDb, resolvePrimaryWallet, getAllLinkedWallets } = require('../database');
-const { computeReputation } = require('../reputation');
+const { computeReputation, computeDelegationBonus, DELEGATION_MIN_SCORE, DELEGATION_MAX_OUTGOING, DELEGATION_MAX_DAYS } = require('../reputation');
+const { validateDelegation } = require('../utils/validators');
+const { generateDelegationId } = require('../utils/generateId');
+const { appendEvent } = require('../eventLog');
 
 /**
  * Trust API — the "itch" hook.
@@ -62,14 +65,18 @@ router.get('/check/:walletAddress', (req, res) => {
       if (rep) reputation = rep;
     }
 
-    // Trust threshold: score >= 10 = trusted (any stamp or registration = trusted)
-    const trusted = reputation.score >= 10 || !!stamp;
+    // Compute delegation bonus
+    const delegationBonus = computeDelegationBonus(wallet, db);
+
+    // Trust threshold: score >= 10 OR has stamp OR delegation bonus > 0
+    const trusted = reputation.score >= 10 || !!stamp || delegationBonus.bonus > 0;
 
     const response = {
       trusted,
       score: reputation.score,
       tier: stamp?.tier || 'none',
       label: reputation.tier_label,
+      delegation_bonus: delegationBonus,
       agent: agent ? {
         id: agent.id,
         name: agent.name,
@@ -346,6 +353,170 @@ router.get('/pulse', (req, res) => {
     });
   } catch (err) {
     console.error('Trust pulse error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// ─── Trust Delegation Endpoints ─────────────────────────────────────────────
+
+// POST /api/v1/trust/delegate — Vouch for another agent
+router.post('/delegate', (req, res) => {
+  try {
+    const db = getDb();
+    const delegatorRaw = req.headers['x-wallet-address'];
+    if (!delegatorRaw) {
+      return res.status(401).json({ success: false, error: 'x-wallet-address header is required' });
+    }
+
+    const validation = validateDelegation(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, error: validation.error });
+    }
+
+    const delegatorWallet = resolvePrimaryWallet(delegatorRaw);
+    const delegateeWallet = resolvePrimaryWallet(req.body.delegatee_wallet);
+
+    // Prevent self-delegation
+    if (delegatorWallet === delegateeWallet) {
+      return res.status(400).json({ success: false, error: 'Cannot delegate trust to yourself' });
+    }
+
+    // Check delegator has an agent with score >= DELEGATION_MIN_SCORE
+    const delegatorAgent = db.prepare(
+      "SELECT id FROM agents WHERE wallet_address = ? AND status = 'active' ORDER BY registered_at ASC LIMIT 1"
+    ).get(delegatorWallet);
+
+    if (!delegatorAgent) {
+      return res.status(403).json({ success: false, error: 'Delegator must have a registered active agent' });
+    }
+
+    const freshRep = computeReputation(delegatorAgent.id);
+    const delegatorScore = freshRep ? freshRep.score : 0;
+    if (delegatorScore < DELEGATION_MIN_SCORE) {
+      return res.status(403).json({
+        success: false,
+        error: `Delegator reputation score must be at least ${DELEGATION_MIN_SCORE}. Current score: ${delegatorScore}`,
+      });
+    }
+
+    // Check max outgoing delegations
+    const outgoingCount = db.prepare(
+      "SELECT COUNT(*) as count FROM trust_delegations WHERE delegator_wallet = ? AND expires_at > datetime('now')"
+    ).get(delegatorWallet).count;
+
+    if (outgoingCount >= DELEGATION_MAX_OUTGOING) {
+      return res.status(400).json({
+        success: false,
+        error: `Maximum ${DELEGATION_MAX_OUTGOING} outgoing delegations allowed`,
+      });
+    }
+
+    // Clean up expired delegations before duplicate check
+    db.prepare(
+      "DELETE FROM trust_delegations WHERE delegator_wallet = ? AND delegatee_wallet = ? AND expires_at <= datetime('now')"
+    ).run(delegatorWallet, delegateeWallet);
+
+    // Check for duplicate (only active, non-expired delegations)
+    const existing = db.prepare(
+      "SELECT id FROM trust_delegations WHERE delegator_wallet = ? AND delegatee_wallet = ? AND expires_at > datetime('now')"
+    ).get(delegatorWallet, delegateeWallet);
+
+    if (existing) {
+      return res.status(409).json({ success: false, error: 'Delegation already exists' });
+    }
+
+    const weight = req.body.weight !== undefined ? parseFloat(req.body.weight) : 1.0;
+    const reason = req.body.reason || null;
+    const expiresAt = new Date(Date.now() + DELEGATION_MAX_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const delegationId = generateDelegationId();
+
+    db.prepare(
+      'INSERT INTO trust_delegations (id, delegator_wallet, delegatee_wallet, weight, reason, expires_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(delegationId, delegatorWallet, delegateeWallet, weight, reason, expiresAt);
+
+    appendEvent('trust_delegated', {
+      wallet_address: delegatorWallet,
+      delegator_wallet: delegatorWallet,
+      delegatee_wallet: delegateeWallet,
+      weight,
+    });
+
+    // Best-effort webhook dispatch
+    try {
+      const { dispatch } = require('../webhookDispatcher');
+      dispatch(delegateeWallet, 'delegation_received', {
+        delegator_wallet: delegatorWallet,
+        weight,
+        delegation_id: delegationId,
+      });
+    } catch (e) { /* best-effort */ }
+
+    res.json({
+      success: true,
+      delegation_id: delegationId,
+      expires_at: expiresAt,
+    });
+  } catch (err) {
+    console.error('Trust delegate error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/v1/trust/delegate/:delegateeWallet — Revoke a delegation
+router.delete('/delegate/:delegateeWallet', (req, res) => {
+  try {
+    const db = getDb();
+    const delegatorRaw = req.headers['x-wallet-address'];
+    if (!delegatorRaw) {
+      return res.status(401).json({ success: false, error: 'x-wallet-address header is required' });
+    }
+
+    const delegatorWallet = resolvePrimaryWallet(delegatorRaw);
+    const delegateeWallet = resolvePrimaryWallet(req.params.delegateeWallet);
+
+    const result = db.prepare(
+      'DELETE FROM trust_delegations WHERE delegator_wallet = ? AND delegatee_wallet = ?'
+    ).run(delegatorWallet, delegateeWallet);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ success: false, error: 'Delegation not found' });
+    }
+
+    appendEvent('trust_revoked', {
+      wallet_address: delegatorWallet,
+      delegator_wallet: delegatorWallet,
+      delegatee_wallet: delegateeWallet,
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Trust revoke error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// GET /api/v1/trust/delegations/:wallet — View incoming and outgoing delegations
+router.get('/delegations/:wallet', (req, res) => {
+  try {
+    const db = getDb();
+    const wallet = resolvePrimaryWallet(req.params.wallet);
+
+    const incoming = db.prepare(
+      "SELECT id, delegator_wallet, weight, reason, expires_at, created_at FROM trust_delegations WHERE delegatee_wallet = ? AND expires_at > datetime('now')"
+    ).all(wallet);
+
+    const outgoing = db.prepare(
+      "SELECT id, delegatee_wallet, weight, reason, expires_at, created_at FROM trust_delegations WHERE delegator_wallet = ? AND expires_at > datetime('now')"
+    ).all(wallet);
+
+    res.json({
+      success: true,
+      wallet,
+      incoming,
+      outgoing,
+    });
+  } catch (err) {
+    console.error('Trust delegations error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });

@@ -7,6 +7,9 @@ const EVENT_TYPES = [
   'heartbeat', 'endorsement',
   'wish_created', 'wish_granted',
   'stamp_event', 'wallet_linked',
+  'trust_decayed', 'reputation_changed',
+  'trust_delegated', 'trust_revoked',
+  'blind_verified',
 ];
 
 const EXECUTION_EVENTS = [

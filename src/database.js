@@ -177,6 +177,20 @@ function initialize() {
     CREATE INDEX IF NOT EXISTS idx_stamp_events_outcome ON stamp_events(outcome);
     CREATE INDEX IF NOT EXISTS idx_stamp_events_created ON stamp_events(created_at DESC);
 
+    CREATE TABLE IF NOT EXISTS trust_delegations (
+      id TEXT PRIMARY KEY,
+      delegator_wallet TEXT NOT NULL,
+      delegatee_wallet TEXT NOT NULL,
+      weight REAL NOT NULL DEFAULT 1.0,
+      reason TEXT,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(delegator_wallet, delegatee_wallet)
+    );
+    CREATE INDEX IF NOT EXISTS idx_delegations_delegator ON trust_delegations(delegator_wallet);
+    CREATE INDEX IF NOT EXISTS idx_delegations_delegatee ON trust_delegations(delegatee_wallet);
+    CREATE INDEX IF NOT EXISTS idx_delegations_expires ON trust_delegations(expires_at);
+
     CREATE TABLE IF NOT EXISTS event_log (
       id TEXT PRIMARY KEY,
       event_type TEXT NOT NULL,
@@ -195,6 +209,13 @@ function initialize() {
     CREATE INDEX IF NOT EXISTS idx_event_log_agent ON event_log(agent_id);
     CREATE INDEX IF NOT EXISTS idx_event_log_wallet ON event_log(wallet_address);
     CREATE INDEX IF NOT EXISTS idx_event_log_created ON event_log(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS blind_tokens (
+      token TEXT PRIMARY KEY,
+      wallet_address TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_blind_tokens_wallet ON blind_tokens(wallet_address);
   `);
 
   // Add heartbeat_count column if it doesn't exist (migration-safe)
@@ -216,6 +237,13 @@ function initialize() {
     // Column already exists — safe to ignore
   }
   db.exec('CREATE INDEX IF NOT EXISTS idx_stamps_outcome ON stamps(outcome)');
+
+  // Add last_reputation_score column for reputation change detection
+  try {
+    db.exec('ALTER TABLE agents ADD COLUMN last_reputation_score INTEGER DEFAULT NULL');
+  } catch (e) {
+    // Column already exists — safe to ignore
+  }
 
   return db;
 }
@@ -306,6 +334,8 @@ function cleanupExpired() {
   for (const a of expiringAgents) {
     appendEvent('agent_expired', { agent_id: a.id, wallet_address: a.wallet_address });
   }
+
+  // Reputation monitoring is handled by heartbeat/endorsement handlers — not here.
 }
 
 module.exports = { initialize, getDb, cleanupExpired, resolvePrimaryWallet, getAllLinkedWallets };
