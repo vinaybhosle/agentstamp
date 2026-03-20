@@ -97,7 +97,7 @@ const PAID_ROUTE_PATTERNS = [
   { method: 'POST', path: '/api/v1/registry/endorse/' },
   { method: 'POST', path: '/api/v1/well/wish' },
   { method: 'POST', path: '/api/v1/well/grant/' },
-  { method: 'GET', path: '/api/v1/well/insights' },
+  { method: 'GET', path: '/api/v1/well/insights', exact: true },
 ];
 
 // x402 payment middleware (V2 — dual-chain: Base + Solana)
@@ -149,7 +149,7 @@ const PAID_ROUTE_PATTERNS = [
   app.use((req, res, next) => {
     if (x402Loaded) return next();
     const isPaid = PAID_ROUTE_PATTERNS.some(
-      (r) => req.method === r.method && req.path.startsWith(r.path)
+      (r) => req.method === r.method && (r.exact ? req.path === r.path : req.path.startsWith(r.path))
     );
     if (isPaid) {
       return res.status(503).json({
