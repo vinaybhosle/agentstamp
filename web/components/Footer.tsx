@@ -14,6 +14,17 @@ const discoveryLinks = [
   { href: "/.well-known/agent-card.json", label: "Agent Card" },
 ];
 
+const listedOnLinks = [
+  {
+    href: "https://aiagentsdirectory.com/agent/agentstamp",
+    label: "AI Agents Directory",
+  },
+  {
+    href: "https://dev.to/vinaybhosle/add-trust-verification-to-your-ai-agent-in-3-lines-of-code-36c9",
+    label: "DEV.to",
+  },
+];
+
 const tipJarAddresses = [
   {
     label: "BTC",
@@ -49,7 +60,7 @@ export function Footer() {
   return (
     <footer className="border-t border-[#1e1e2a] bg-[#050508]">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
-        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Navigation */}
           <div>
             <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-[#6b6b80]">
@@ -83,6 +94,27 @@ export function Footer() {
                   >
                     {link.label}
                   </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Listed On */}
+          <div>
+            <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-[#6b6b80]">
+              Listed On
+            </h3>
+            <ul className="space-y-2">
+              {listedOnLinks.map((link) => (
+                <li key={link.href}>
+                  <a
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-[#6b6b80] transition-colors hover:text-[#e8e8ed]"
+                  >
+                    {link.label} ↗
+                  </a>
                 </li>
               ))}
             </ul>
