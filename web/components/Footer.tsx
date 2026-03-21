@@ -16,10 +16,6 @@ const discoveryLinks = [
 
 const listedOnLinks = [
   {
-    href: "https://aiagentsdirectory.com/agent/agentstamp",
-    label: "AI Agents Directory",
-  },
-  {
     href: "https://dev.to/vinaybhosle/add-trust-verification-to-your-ai-agent-in-3-lines-of-code-36c9",
     label: "DEV.to",
   },
