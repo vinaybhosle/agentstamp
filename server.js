@@ -110,6 +110,7 @@ const PAID_ROUTE_PATTERNS = [
     const { ExactEvmScheme } = require('@x402/evm/exact/server');
     const { ExactSvmScheme } = require('@x402/svm/exact/server');
     const { HTTPFacilitatorClient } = require('@x402/core/server');
+    const { declareDiscoveryExtension } = require('@x402/extensions/bazaar');
 
     const BASE_NETWORK = 'eip155:8453';
     const SOLANA_NETWORK = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
@@ -129,17 +130,59 @@ const PAID_ROUTE_PATTERNS = [
       return accepts;
     }
 
+    const bazaar = (config) => ({ extensions: { ...declareDiscoveryExtension(config) } });
+
     const paidRoutes = {
-      'POST /api/v1/stamp/mint/bronze': { accepts: dualChainAccepts('$0.001'), description: 'Mint bronze identity certificate (24h)' },
-      'POST /api/v1/stamp/mint/silver': { accepts: dualChainAccepts('$0.005'), description: 'Mint silver identity certificate (7d)' },
-      'POST /api/v1/stamp/mint/gold': { accepts: dualChainAccepts('$0.01'), description: 'Mint gold identity certificate (30d)' },
-      'POST /api/v1/registry/register': { accepts: dualChainAccepts('$0.01'), description: 'Register agent in directory (30d)' },
-      'PUT /api/v1/registry/update/[agentId]': { accepts: dualChainAccepts('$0.005'), description: 'Update agent listing' },
-      'POST /api/v1/registry/endorse/[agentId]': { accepts: dualChainAccepts('$0.005'), description: 'Endorse an agent' },
-      'POST /api/v1/well/wish': { accepts: dualChainAccepts('$0.001'), description: 'Cast a wish for a capability' },
-      'POST /api/v1/well/grant/[wishId]': { accepts: dualChainAccepts('$0.005'), description: 'Grant a wish' },
-      'GET /api/v1/well/insights': { accepts: dualChainAccepts('$0.01'), description: 'Market insights on what AI agents want' },
-      'POST /api/v1/bridge/erc8004/link': { accepts: dualChainAccepts('$0.01'), description: 'Link ERC-8004 on-chain agent to AgentStamp trust layer' },
+      'POST /api/v1/stamp/mint/bronze': {
+        accepts: dualChainAccepts('$0.001'),
+        description: 'Mint bronze identity certificate (24h)',
+        ...bazaar({ bodyType: 'json', input: { wallet_address: '0x...', name: 'MyAgent' }, output: { example: { certId: 'cert_abc123', tier: 'bronze', expiresAt: '2026-03-22T00:00:00Z', signature: 'base64...' } } }),
+      },
+      'POST /api/v1/stamp/mint/silver': {
+        accepts: dualChainAccepts('$0.005'),
+        description: 'Mint silver identity certificate (7d)',
+        ...bazaar({ bodyType: 'json', input: { wallet_address: '0x...', name: 'MyAgent' }, output: { example: { certId: 'cert_abc123', tier: 'silver', expiresAt: '2026-03-28T00:00:00Z', signature: 'base64...' } } }),
+      },
+      'POST /api/v1/stamp/mint/gold': {
+        accepts: dualChainAccepts('$0.01'),
+        description: 'Mint gold identity certificate (30d)',
+        ...bazaar({ bodyType: 'json', input: { wallet_address: '0x...', name: 'MyAgent' }, output: { example: { certId: 'cert_abc123', tier: 'gold', expiresAt: '2026-04-20T00:00:00Z', signature: 'base64...' } } }),
+      },
+      'POST /api/v1/registry/register': {
+        accepts: dualChainAccepts('$0.01'),
+        description: 'Register agent in directory (30d)',
+        ...bazaar({ bodyType: 'json', input: { name: 'MyAgent', description: 'An AI agent', category: 'infrastructure', capabilities: ['search'], endpoint: 'https://example.com' }, output: { example: { agentId: 'agent_abc123', registered: true, expiresAt: '2026-04-20T00:00:00Z' } } }),
+      },
+      'PUT /api/v1/registry/update/[agentId]': {
+        accepts: dualChainAccepts('$0.005'),
+        description: 'Update agent listing',
+        ...bazaar({ bodyType: 'json', input: { description: 'Updated description' }, output: { example: { updated: true } } }),
+      },
+      'POST /api/v1/registry/endorse/[agentId]': {
+        accepts: dualChainAccepts('$0.005'),
+        description: 'Endorse an agent',
+        ...bazaar({ bodyType: 'json', input: { comment: 'Reliable agent' }, output: { example: { endorsementId: 'end_abc123', endorsed: true } } }),
+      },
+      'POST /api/v1/well/wish': {
+        accepts: dualChainAccepts('$0.001'),
+        description: 'Cast a wish for a capability',
+        ...bazaar({ bodyType: 'json', input: { text: 'I wish for better search', category: 'capability' }, output: { example: { wishId: 'wish_abc123', status: 'open' } } }),
+      },
+      'POST /api/v1/well/grant/[wishId]': {
+        accepts: dualChainAccepts('$0.005'),
+        description: 'Grant a wish',
+        ...bazaar({ bodyType: 'json', input: { response: 'Here is how I can help' }, output: { example: { granted: true, grantId: 'grant_abc123' } } }),
+      },
+      'GET /api/v1/well/insights': {
+        accepts: dualChainAccepts('$0.01'),
+        description: 'Market insights on what AI agents want',
+        ...bazaar({ output: { example: { totalWishes: 150, topCategories: ['capability', 'integration', 'data'], grantRate: 0.42 } } }),
+      },
+      'POST /api/v1/bridge/erc8004/link': {
+        accepts: dualChainAccepts('$0.01'),
+        description: 'Link ERC-8004 on-chain agent to AgentStamp trust layer',
+        ...bazaar({ bodyType: 'json', input: { erc8004AgentId: '12345', wallet_address: '0x...' }, output: { example: { linked: true, trustScore: 72 } } }),
+      },
     };
 
     app.use(paymentMiddleware(paidRoutes, resourceServer));
