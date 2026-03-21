@@ -1,0 +1,136 @@
+name: 'AgentStamp Verify'
+description: 'Verify an AI agent trust score before deployment. Gates CI/CD behind AgentStamp trust verification.'
+author: 'Vinay Bhosle'
+
+branding:
+  icon: 'shield'
+  color: 'green'
+
+inputs:
+  wallet-address:
+    description: 'Agent wallet address (EVM 0x... or Solana base58)'
+    required: true
+  min-tier:
+    description: 'Minimum stamp tier required (free, bronze, silver, gold)'
+    required: false
+    default: 'bronze'
+  min-score:
+    description: 'Minimum trust score required (0-100)'
+    required: false
+    default: '0'
+  api-url:
+    description: 'AgentStamp API base URL'
+    required: false
+    default: 'https://agentstamp.org'
+  fail-on-unregistered:
+    description: 'Fail if agent is not registered in the directory'
+    required: false
+    default: 'false'
+
+outputs:
+  verified:
+    description: 'Whether the agent passed verification (true/false)'
+    value: ${{ steps.verify.outputs.verified }}
+  trust-score:
+    description: 'Agent trust score (0-100)'
+    value: ${{ steps.verify.outputs.trust_score }}
+  tier:
+    description: 'Agent stamp tier'
+    value: ${{ steps.verify.outputs.tier }}
+  agent-name:
+    description: 'Agent name from registry'
+    value: ${{ steps.verify.outputs.agent_name }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Verify AgentStamp
+      id: verify
+      shell: bash
+      run: |
+        WALLET="${{ inputs.wallet-address }}"
+        MIN_TIER="${{ inputs.min-tier }}"
+        MIN_SCORE="${{ inputs.min-score }}"
+        API_URL="${{ inputs.api-url }}"
+        FAIL_UNREG="${{ inputs.fail-on-unregistered }}"
+
+        echo "::group::AgentStamp Verification"
+        echo "Verifying wallet: ${WALLET:0:10}..."
+        echo "Min tier: $MIN_TIER | Min score: $MIN_SCORE"
+
+        # Call trust_check endpoint
+        RESPONSE=$(curl -sf "$API_URL/api/v1/trust/check/$WALLET" 2>/dev/null)
+        if [ $? -ne 0 ]; then
+          echo "::error::Failed to reach AgentStamp API at $API_URL"
+          echo "verified=false" >> $GITHUB_OUTPUT
+          echo "trust_score=0" >> $GITHUB_OUTPUT
+          echo "tier=none" >> $GITHUB_OUTPUT
+          echo "agent_name=" >> $GITHUB_OUTPUT
+          echo "::endgroup::"
+          exit 1
+        fi
+
+        # Parse response
+        TRUSTED=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(str(d.get('trusted', False)).lower())")
+        SCORE=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('score', 0))")
+        TIER=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tier', 'none'))")
+        NAME=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('agent', {}).get('name', ''))" 2>/dev/null || echo "")
+        REGISTERED=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(str(d.get('registered', False)).lower())")
+
+        echo "Trusted: $TRUSTED"
+        echo "Score: $SCORE"
+        echo "Tier: $TIER"
+        echo "Agent: $NAME"
+        echo "Registered: $REGISTERED"
+
+        # Set outputs
+        echo "trust_score=$SCORE" >> $GITHUB_OUTPUT
+        echo "tier=$TIER" >> $GITHUB_OUTPUT
+        echo "agent_name=$NAME" >> $GITHUB_OUTPUT
+
+        # Tier ranking
+        tier_rank() {
+          case "$1" in
+            free) echo 0 ;;
+            bronze) echo 1 ;;
+            silver) echo 2 ;;
+            gold) echo 3 ;;
+            *) echo -1 ;;
+          esac
+        }
+
+        ACTUAL_RANK=$(tier_rank "$TIER")
+        REQUIRED_RANK=$(tier_rank "$MIN_TIER")
+
+        # Verification logic
+        PASS=true
+
+        if [ "$TRUSTED" != "true" ]; then
+          echo "::warning::Agent is not trusted"
+          PASS=false
+        fi
+
+        if [ "$ACTUAL_RANK" -lt "$REQUIRED_RANK" ]; then
+          echo "::error::Tier $TIER is below minimum $MIN_TIER"
+          PASS=false
+        fi
+
+        if [ "$SCORE" -lt "$MIN_SCORE" ]; then
+          echo "::error::Trust score $SCORE is below minimum $MIN_SCORE"
+          PASS=false
+        fi
+
+        if [ "$FAIL_UNREG" = "true" ] && [ "$REGISTERED" != "true" ]; then
+          echo "::error::Agent is not registered in the directory"
+          PASS=false
+        fi
+
+        echo "verified=$PASS" >> $GITHUB_OUTPUT
+        echo "::endgroup::"
+
+        if [ "$PASS" = "true" ]; then
+          echo "✓ Agent verified: $NAME (score: $SCORE, tier: $TIER)"
+        else
+          echo "✗ Agent verification failed"
+          exit 1
+        fi
