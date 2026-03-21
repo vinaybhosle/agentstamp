@@ -2,6 +2,9 @@
 # Research Scout — runs via claude CLI, searches for new intel about AgentStamp and ShippingRates
 set -euo pipefail
 
+# Source secrets — launchd doesn't inherit ~/.zshenv
+[ -f "$HOME/.zshenv" ] && source "$HOME/.zshenv"
+
 LOG_DIR="$(dirname "$0")/logs"
 mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date '+%Y-%m-%d_%H-%M')
@@ -37,7 +40,22 @@ Summary of steps:
    - **Changes**: <what this updates>
    - **Action**: <next step for P1, or "monitor" for P2>
 
-6. Telegram ONLY for P1 items (zero noise otherwise):
+6. ALSO write product-specific intel files (SEPARATE PIPELINES — no cross-contamination):
+
+   AgentStamp intel → /Users/vinaybhosle/Desktop/AgentStamp/scripts/research-intel-agentstamp.md
+   ShippingRates intel → /Users/vinaybhosle/Desktop/AgentStamp/scripts/research-intel-shippingrates.md
+
+   Rules:
+   - AgentStamp file gets ONLY findings with Relevance "AgentStamp" or "Both"
+   - ShippingRates file gets ONLY findings with Relevance "ShippingRates" or "Both"
+   - NEVER put ShippingRates-only findings in the AgentStamp file (e.g., schedule reliability, carrier data, SeaRates, D&D)
+   - NEVER put AgentStamp-only findings in the ShippingRates file (e.g., ERC-8004, trust scoring, A2A passport)
+   - "Both" findings (e.g., Stripe x402) go in BOTH files
+   - Overwrite the file each run (not append) — only keep the LATEST findings
+   - Format: plain markdown, one section per finding with summary, source, and action
+   - These files are consumed by the Moltbook automation for posting/commenting — keep them concise and factual
+
+7. Telegram ONLY for P1 items (zero noise otherwise):
    AgentStamp findings → Bot token from env var TG_TOKEN_AS (read via: echo $TG_TOKEN_AS)
    ShippingRates findings → Bot token from env var TG_TOKEN_SR (read via: echo $TG_TOKEN_SR)
    Chat ID from env var TG_CHAT_ID (read via: echo $TG_CHAT_ID)

@@ -1,7 +1,7 @@
 {
   "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
   "name": "AgentStamp",
-  "description": "Trust Intelligence Platform for AI agents — x402 identity certification, trust scoring (0-100), forensic audit trails, cross-chain wallet linking, and A2A-compatible passports. Free trust check API. Gold stamp $0.01/30d. 14 MCP tools.",
+  "description": "Trust Intelligence Platform for AI agents — x402 identity certification, trust scoring (0-100), forensic audit trails, cross-chain wallet linking, and A2A-compatible passports. Free trust check API. Gold stamp $0.01/30d. 19 MCP tools.",
   "image": "https://agentstamp.org/logo.png",
   "services": [
     {
