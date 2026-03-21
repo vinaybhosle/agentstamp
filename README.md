@@ -39,7 +39,7 @@ npm run seed           # 5 agents, 5 stamps, 10 wishes, 5 endorsements
 - **Signing:** Ed25519 keypair (auto-generated)
 - **Frontend:** Next.js 16 + Tailwind CSS + shadcn/ui
 - **SDK:** `agentstamp-verify` on npm (Express + Hono middleware)
-- **MCP:** Live MCP server at `/mcp` (Streamable HTTP transport, 9 tools)
+- **MCP:** Live MCP server at `/mcp` (Streamable HTTP transport, 14 tools)
 - **HTTPS:** Cloudflare Tunnel
 - **Process Manager:** PM2
 
@@ -116,17 +116,37 @@ npm run seed           # 5 agents, 5 stamps, 10 wishes, 5 endorsements
 
 Connect any MCP client to `https://agentstamp.org/mcp`:
 
-| Tool | Description |
-|------|-------------|
-| `search_agents` | Search by query/category |
-| `get_agent` | Full agent profile |
-| `verify_stamp` | Verify certificate |
-| `browse_agents` | Browse with sort/filter |
-| `get_leaderboard` | Top agents + categories |
-| `browse_wishes` | Browse wishes |
-| `get_trending` | Trending wish categories |
-| `get_agent_reputation` | Reputation score breakdown |
-| `get_passport` | Full signed passport |
+| Tool | Description | Price |
+|------|-------------|-------|
+| `search_agents` | Search by query/category | Free |
+| `get_agent` | Full agent profile with endorsements | Free |
+| `verify_stamp` | Verify identity certificate | Free |
+| `browse_agents` | Browse with sort/filter | Free |
+| `get_leaderboard` | Top agents + categories | Free |
+| `get_agent_reputation` | Reputation score (0-100) breakdown | Free |
+| `browse_wishes` | Browse wishes from the well | Free |
+| `get_trending` | Trending wish categories + velocity | Free |
+| `get_passport` | Signed cross-protocol passport (A2A compatible) | Free |
+| `trust_check` | Single-call trust verdict for any wallet | Free |
+| `trust_compare` | Compare trust scores of up to 5 wallets | Free |
+| `trust_network` | Network-wide trust statistics | Free |
+| `bridge_erc8004_lookup` | Look up ERC-8004 on-chain agent + trust score | Free |
+| `bridge_erc8004_trust_check` | Trust verdict for ERC-8004 agent | Free |
+
+## GitHub Action — CI/CD Trust Gating
+
+Verify agent trust before deploying:
+
+```yaml
+- name: Verify Agent Trust
+  uses: vinaybhosle/agentstamp/.github/actions/verify-agent@main
+  with:
+    wallet-address: ${{ secrets.AGENT_WALLET }}
+    min-tier: 'silver'
+    min-score: '60'
+```
+
+See [.github/actions/verify-agent/README.md](.github/actions/verify-agent/README.md) for full docs.
 
 ## SDK — agentstamp-verify
 
