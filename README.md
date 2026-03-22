@@ -6,6 +6,8 @@ A lightweight x402-powered platform combining AI agent identity certification, a
 
 **Live at:** [https://agentstamp.org](https://agentstamp.org)
 
+[![AgentStamp MCP server](https://glama.ai/mcp/servers/vinaybhosle/agentstamp/badges/card.svg)](https://glama.ai/mcp/servers/vinaybhosle/agentstamp)
+
 ## Quick Start
 
 ```bash
