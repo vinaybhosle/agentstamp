@@ -49,9 +49,16 @@ function requireSignature(options = {}) {
     let result = verifyWalletSignature(message, signature, walletAddress);
 
     // Backward compatibility: if body-bound verification fails, try without body hash
+    // DEPRECATED: Legacy fallback will be removed after 2026-04-22. SDK users must include body hash.
+    let legacyMode = false;
     if (!result.valid && bodyHash) {
       const legacyMessage = buildSignatureMessage(action, timestamp);
       result = verifyWalletSignature(legacyMessage, signature, walletAddress);
+      if (result.valid) {
+        legacyMode = true;
+        console.warn(`DEPRECATION: Signature accepted without body hash from wallet ${walletAddress.slice(0, 10)}... — action: ${action}`);
+        res.setHeader('X-AgentStamp-Deprecation', 'body-hash-required-after-2026-04-22');
+      }
     }
 
     if (!result.valid) {
@@ -66,6 +73,7 @@ function requireSignature(options = {}) {
       chain: result.chain,
       timestamp: ts,
       verified: true,
+      legacyMode,
     });
 
     // Mark wallet as verified in DB (first time only, best-effort)

@@ -47,12 +47,13 @@ runs:
     - name: Verify AgentStamp
       id: verify
       shell: bash
+      env:
+        WALLET: ${{ inputs.wallet-address }}
+        MIN_TIER: ${{ inputs.min-tier }}
+        MIN_SCORE: ${{ inputs.min-score }}
+        API_URL: ${{ inputs.api-url }}
+        FAIL_UNREG: ${{ inputs.fail-on-unregistered }}
       run: |
-        WALLET="${{ inputs.wallet-address }}"
-        MIN_TIER="${{ inputs.min-tier }}"
-        MIN_SCORE="${{ inputs.min-score }}"
-        API_URL="${{ inputs.api-url }}"
-        FAIL_UNREG="${{ inputs.fail-on-unregistered }}"
 
         echo "::group::AgentStamp Verification"
         echo "Verifying wallet: ${WALLET:0:10}..."

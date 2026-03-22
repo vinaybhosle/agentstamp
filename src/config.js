@@ -1,17 +1,17 @@
 require('dotenv').config();
 const crypto = require('crypto');
 
-const BLIND_TOKEN_SECRET = process.env.BLIND_TOKEN_SECRET || (() => {
-  const generated = crypto.randomBytes(32).toString('hex');
-  console.warn('WARNING: BLIND_TOKEN_SECRET not set — generated ephemeral secret. Blind tokens will not persist across restarts. Set BLIND_TOKEN_SECRET in .env for production.');
-  return generated;
-})();
+if (!process.env.BLIND_TOKEN_SECRET) {
+  console.error('BLIND_TOKEN_SECRET is required in .env — blind tokens will not persist without it.');
+  process.exit(1);
+}
+if (!process.env.IP_HASH_SALT) {
+  console.error('IP_HASH_SALT is required in .env — IP hashing requires a stable salt.');
+  process.exit(1);
+}
 
-const IP_HASH_SALT = process.env.IP_HASH_SALT || (() => {
-  const generated = crypto.randomBytes(16).toString('hex');
-  console.warn('WARNING: IP_HASH_SALT not set — generated ephemeral salt. IP hashes will differ across restarts. Set IP_HASH_SALT in .env for production.');
-  return generated;
-})();
+const BLIND_TOKEN_SECRET = process.env.BLIND_TOKEN_SECRET;
+const IP_HASH_SALT = process.env.IP_HASH_SALT;
 
 const config = {
   port: parseInt(process.env.PORT, 10) || 4005,

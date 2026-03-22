@@ -46,11 +46,20 @@ function validateUrl(url) {
   }
 }
 
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 function validateMetadata(meta) {
   if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return {};
   const str = JSON.stringify(meta);
   if (str.length > 5120) return {}; // 5KB max
-  return meta;
+  // Strip prototype pollution keys — return a clean copy (immutable pattern)
+  const clean = {};
+  for (const key of Object.keys(meta)) {
+    if (!FORBIDDEN_KEYS.has(key)) {
+      clean[key] = meta[key];
+    }
+  }
+  return clean;
 }
 
 function validateAgentRegister(body) {

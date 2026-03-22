@@ -1,3 +1,4 @@
+require('./instrument'); // Sentry — must be first import
 const config = require('./src/config');
 const database = require('./src/database');
 const cryptoModule = require('./src/crypto');
@@ -187,23 +188,59 @@ const PAID_ROUTE_PATTERNS = [
 
     app.use(paymentMiddleware(paidRoutes, resourceServer));
 
-    // x402 payment replay detection — reject duplicate payment tokens (local dedup layer)
-    const seenPayments = new Map(); // hash → timestamp
-    const PAYMENT_DEDUP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+    // x402 payment replay detection — persistent dedup (SQLite-backed + in-memory L1 cache)
+    const seenPayments = new Map(); // L1 cache: hash → timestamp
+    const PAYMENT_DEDUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+    // Pre-load recent hashes from DB into L1 cache on startup
+    try {
+      const db = database.getDb();
+      const recent = db.prepare(
+        "SELECT hash FROM payment_hashes WHERE created_at > datetime('now', '-24 hours')"
+      ).all();
+      for (const row of recent) {
+        seenPayments.set(row.hash, Date.now());
+      }
+      if (recent.length > 0) {
+        console.log(`Loaded ${recent.length} payment hashes from DB into replay cache`);
+      }
+    } catch (e) { /* best-effort on startup */ }
+
+    // Periodic cleanup: purge expired hashes from both cache and DB
     setInterval(() => {
       const cutoff = Date.now() - PAYMENT_DEDUP_TTL_MS;
       for (const [hash, ts] of seenPayments) {
         if (ts < cutoff) seenPayments.delete(hash);
       }
-    }, 60_000);
+      try {
+        database.getDb().prepare(
+          "DELETE FROM payment_hashes WHERE created_at < datetime('now', '-24 hours')"
+        ).run();
+      } catch (e) { /* best-effort */ }
+    }, 5 * 60_000); // every 5 minutes
 
     app.use((req, res, next) => {
       const paymentHeader = req.headers['x-payment'] || req.headers['payment'];
       if (!paymentHeader) return next();
       const paymentHash = crypto.createHash('sha256').update(paymentHeader).digest('hex');
+
+      // L1 cache check (fast path)
       if (seenPayments.has(paymentHash)) {
         return res.status(409).json({ success: false, error: 'Duplicate payment token — possible replay attack' });
       }
+
+      // L2 DB check (survives restarts)
+      try {
+        const db = database.getDb();
+        const existing = db.prepare('SELECT 1 FROM payment_hashes WHERE hash = ?').get(paymentHash);
+        if (existing) {
+          seenPayments.set(paymentHash, Date.now()); // warm L1 cache
+          return res.status(409).json({ success: false, error: 'Duplicate payment token — possible replay attack' });
+        }
+        // Persist new payment hash
+        db.prepare('INSERT INTO payment_hashes (hash) VALUES (?)').run(paymentHash);
+      } catch (e) { /* if DB write fails, L1 cache still catches within this process lifecycle */ }
+
       seenPayments.set(paymentHash, Date.now());
       next();
     });
@@ -214,9 +251,20 @@ const PAID_ROUTE_PATTERNS = [
     console.error('CRITICAL: x402 middleware failed to load — paid routes will return 503:', err.message);
   }
 
+  // Free-tier endpoints that should work even when x402 is unavailable
+  const FREE_ROUTE_PATTERNS = [
+    { method: 'POST', path: '/api/v1/stamp/mint/free' },
+    { method: 'POST', path: '/api/v1/registry/register/free' },
+  ];
+
   // Fail-closed guard: if x402 didn't load, block all paid routes with 503
+  // but allow free-tier endpoints through
   app.use((req, res, next) => {
     if (x402Loaded) return next();
+    const isFree = FREE_ROUTE_PATTERNS.some(
+      (r) => req.method === r.method && req.path === r.path
+    );
+    if (isFree) return next();
     const isPaid = PAID_ROUTE_PATTERNS.some(
       (r) => req.method === r.method && (r.exact ? req.path === r.path : req.path.startsWith(r.path))
     );
@@ -270,7 +318,7 @@ const PAID_ROUTE_PATTERNS = [
   // Routes — with per-route rate limiters layered on top of global
   app.use(healthRoutes);
   app.use('/api/v1/stamp', mutationLimiter, stampRoutes);
-  app.use('/api/v1/registry', registryRoutes);
+  app.use('/api/v1/registry', readLimiter, registryRoutes);
   app.use('/api/v1/well', wellRoutes);
   app.use('/api/v1/passport', readLimiter, passportRoutes);
   app.use('/api/v1/analytics', analyticsLimiter, analyticsRoutes);
@@ -516,6 +564,10 @@ Facilitator: ${config.facilitatorUrl}
   setInterval(() => {
     try { database.cleanupExpired(); } catch (e) { console.error('Cleanup error:', e.message); }
   }, 10 * 60 * 1000);
+
+  // Sentry error handler — must be after all routes
+  const Sentry = require('@sentry/node');
+  Sentry.setupExpressErrorHandler(app);
 
   // Start server
   app.listen(config.port, config.host, () => {

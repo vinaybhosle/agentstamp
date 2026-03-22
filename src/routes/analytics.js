@@ -5,16 +5,7 @@ const { computeReputation } = require('../reputation');
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
-const crypto = require('crypto');
-
-function timingSafeEqual(a, b) {
-  if (typeof a !== 'string' || typeof b !== 'string') return false;
-  const key = process.env.AUTH_SECRET || process.env.ANALYTICS_KEY;
-  if (!key) return false; // fail-closed: no secret configured
-  const hashA = crypto.createHmac('sha256', key).update(a).digest();
-  const hashB = crypto.createHmac('sha256', key).update(b).digest();
-  return crypto.timingSafeEqual(hashA, hashB);
-}
+const { timingSafeCompare } = require('../utils/timingSafeCompare');
 
 /**
  * Analytics API — comprehensive KPIs for the admin dashboard.
@@ -28,7 +19,7 @@ function requireAnalyticsKey(req, res, next) {
   if (!expected) {
     return res.status(503).json({ error: 'Analytics not configured' });
   }
-  if (!key || !timingSafeEqual(key, expected)) {
+  if (!key || !timingSafeCompare(key, expected, expected)) {
     return res.status(401).json({ error: 'Invalid or missing analytics key' });
   }
   next();

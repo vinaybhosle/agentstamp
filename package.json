@@ -1,6 +1,6 @@
 {
   "name": "agentstamp",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "mcpName": "io.github.vinaybhosle/agentstamp",
   "description": "Stamp your agent into existence. Identity certificates, public registry, and wishing well for AI agents.",
   "main": "server.js",
@@ -33,6 +33,7 @@
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
+    "@sentry/node": "^10.45.0",
     "@x402/core": "^2.6.0",
     "@x402/evm": "^2.6.0",
     "@x402/express": "^2.6.0",

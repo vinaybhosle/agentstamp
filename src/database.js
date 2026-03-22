@@ -15,6 +15,17 @@ function initialize() {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
 
+  // Tighten database file permissions (mirror crypto.js key file pattern)
+  try {
+    const stat = fs.statSync(config.dbPath);
+    if (stat.mode & 0o077) { // any group/other permissions
+      fs.chmodSync(config.dbPath, 0o600);
+      console.log(`Database file permissions tightened to 0600: ${config.dbPath}`);
+    }
+  } catch (e) {
+    console.warn('Could not check/fix database file permissions:', e.message);
+  }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS stamps (
       id TEXT PRIMARY KEY,
@@ -227,6 +238,12 @@ function initialize() {
       linked_at TEXT DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_erc8004_wallet ON erc8004_links(agentstamp_wallet);
+
+    CREATE TABLE IF NOT EXISTS payment_hashes (
+      hash TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_payment_hashes_created ON payment_hashes(created_at);
   `);
 
   // Add heartbeat_count column if it doesn't exist (migration-safe)

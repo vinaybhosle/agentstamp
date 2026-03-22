@@ -1,22 +1,13 @@
 const express = require('express');
-const crypto = require('crypto');
 const router = express.Router();
 const { getDb, resolvePrimaryWallet } = require('../database');
 const { STAMP_EVENT_OUTCOMES } = require('../utils/validators');
-
-function timingSafeStringEqual(a, b) {
-  if (typeof a !== 'string' || typeof b !== 'string') return false;
-  const key = process.env.AUTH_SECRET || process.env.ANALYTICS_KEY;
-  if (!key) return false; // fail-closed: no secret configured
-  const hashA = crypto.createHmac('sha256', key).update(a).digest();
-  const hashB = crypto.createHmac('sha256', key).update(b).digest();
-  return crypto.timingSafeEqual(hashA, hashB);
-}
+const { timingSafeCompare } = require('../utils/timingSafeCompare');
 
 // Middleware: require wallet-based auth or admin key for sensitive audit endpoints
 function requireWalletOrAdmin(req, res, next) {
   const adminKey = process.env.ADMIN_KEY;
-  if (adminKey && req.headers['x-admin-key'] && timingSafeStringEqual(req.headers['x-admin-key'], adminKey)) {
+  if (adminKey && req.headers['x-admin-key'] && timingSafeCompare(req.headers['x-admin-key'], adminKey, adminKey)) {
     req.isAdmin = true;
     return next();
   }

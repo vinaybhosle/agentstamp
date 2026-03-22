@@ -1,14 +1,41 @@
 const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
-const { getDb } = require('../database');
+const { getDb, resolvePrimaryWallet } = require('../database');
 const { generateWebhookId } = require('../utils/generateId');
 const { requireSignature } = require('../middleware/walletSignature');
+const dns = require('dns');
 
 const VALID_EVENTS = ['stamp_minted', 'stamp_expiring', 'endorsement_received', 'wish_granted', 'wish_matched', 'reputation_changed', 'agent_registered'];
 
+/**
+ * Check if an IP address is private/internal.
+ * Covers IPv4, IPv6, IPv4-mapped IPv6, decimal/hex IP forms.
+ */
+function isPrivateIp(ip) {
+  // Normalize IPv4-mapped IPv6 (::ffff:x.x.x.x)
+  const v4Mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  const normalized = v4Mapped ? v4Mapped[1] : ip;
+
+  // IPv4 private ranges
+  if (/^127\./.test(normalized)) return true;
+  if (/^10\./.test(normalized)) return true;
+  if (/^192\.168\./.test(normalized)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(normalized)) return true;
+  if (/^169\.254\./.test(normalized)) return true;
+  if (normalized === '0.0.0.0') return true;
+
+  // IPv6 private ranges
+  if (ip === '::1' || ip === '::') return true;
+  if (/^fe80:/i.test(ip)) return true; // link-local
+  if (/^fc00:/i.test(ip) || /^fd[0-9a-f]{2}:/i.test(ip)) return true; // unique local
+  if (/^::ffff:(127\.|10\.|192\.168\.|0\.)/i.test(ip)) return true;
+
+  return false;
+}
+
 // POST /api/v1/webhooks/register — Register a webhook
-router.post('/register', requireSignature({ required: true, action: 'webhook_register' }), (req, res) => {
+router.post('/register', requireSignature({ required: true, action: 'webhook_register' }), async (req, res) => {
   try {
     const walletAddress = req.headers['x-wallet-address'] || req.body.wallet_address;
     if (!walletAddress) {
@@ -21,27 +48,53 @@ router.post('/register', requireSignature({ required: true, action: 'webhook_reg
     }
 
     // SSRF protection: reject private/internal URLs
+    let parsed;
     try {
-      const parsed = new URL(url);
-      const hostname = parsed.hostname.toLowerCase();
-      if (
-        hostname === 'localhost' ||
-        hostname === '127.0.0.1' ||
-        hostname === '0.0.0.0' ||
-        hostname === '::1' ||
-        hostname.endsWith('.local') ||
-        hostname.startsWith('10.') ||
-        hostname.startsWith('192.168.') ||
-        /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
-        hostname.startsWith('169.254.')
-      ) {
-        return res.status(400).json({ success: false, error: 'Webhook URLs must not point to private or internal addresses' });
-      }
-      if (parsed.protocol !== 'https:') {
-        return res.status(400).json({ success: false, error: 'Webhook URLs must use HTTPS' });
-      }
+      parsed = new URL(url);
     } catch {
       return res.status(400).json({ success: false, error: 'Invalid URL format' });
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Reject non-HTTPS
+    if (parsed.protocol !== 'https:') {
+      return res.status(400).json({ success: false, error: 'Webhook URLs must use HTTPS' });
+    }
+
+    // Reject bare IP addresses in non-standard formats (decimal, hex, octal)
+    if (/^\d+$/.test(hostname) || /0x/i.test(hostname)) {
+      return res.status(400).json({ success: false, error: 'Webhook URLs must not use numeric IP addresses' });
+    }
+
+    // Reject bracketed IPv6 addresses
+    if (hostname.startsWith('[')) {
+      return res.status(400).json({ success: false, error: 'Webhook URLs must not use IPv6 addresses directly' });
+    }
+
+    // Hostname string checks (fast path)
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname === '::1' ||
+      hostname.endsWith('.local') ||
+      hostname.startsWith('10.') ||
+      hostname.startsWith('192.168.') ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+      hostname.startsWith('169.254.')
+    ) {
+      return res.status(400).json({ success: false, error: 'Webhook URLs must not point to private or internal addresses' });
+    }
+
+    // DNS resolution check — catch DNS rebinding at registration time
+    try {
+      const { address } = await dns.promises.lookup(hostname, { family: 0 });
+      if (isPrivateIp(address)) {
+        return res.status(400).json({ success: false, error: 'Webhook URL resolves to a private IP address' });
+      }
+    } catch (dnsErr) {
+      return res.status(400).json({ success: false, error: 'Webhook URL hostname could not be resolved' });
     }
 
     if (!Array.isArray(events) || events.length === 0) {
@@ -87,10 +140,11 @@ router.post('/register', requireSignature({ required: true, action: 'webhook_reg
 // GET /api/v1/webhooks — List webhooks for a wallet (requires signature to prevent enumeration)
 router.get('/', requireSignature({ required: true, action: 'webhook_list' }), (req, res) => {
   try {
-    const walletAddress = req.headers['x-wallet-address'];
-    if (!walletAddress) {
+    const rawWallet = req.headers['x-wallet-address'];
+    if (!rawWallet) {
       return res.status(400).json({ success: false, error: 'x-wallet-address header required' });
     }
+    const walletAddress = resolvePrimaryWallet(rawWallet);
 
     const db = getDb();
     const hooks = db.prepare('SELECT id, url, events, active, created_at FROM webhooks WHERE wallet_address = ?').all(walletAddress);
@@ -108,10 +162,11 @@ router.get('/', requireSignature({ required: true, action: 'webhook_list' }), (r
 // DELETE /api/v1/webhooks/:id — Remove a webhook
 router.delete('/:id', requireSignature({ required: true, action: 'webhook_delete' }), (req, res) => {
   try {
-    const walletAddress = req.headers['x-wallet-address'];
-    if (!walletAddress) {
+    const rawWallet = req.headers['x-wallet-address'];
+    if (!rawWallet) {
       return res.status(400).json({ success: false, error: 'x-wallet-address header required' });
     }
+    const walletAddress = resolvePrimaryWallet(rawWallet);
 
     const db = getDb();
     const hook = db.prepare('SELECT * FROM webhooks WHERE id = ?').get(req.params.id);
