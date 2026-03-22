@@ -34,6 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       WALLET_ADDRESS: '0x0000000000000000000000000000000000000000'
+      BLIND_TOKEN_SECRET: 'ci-test-blind-token-secret-not-real'
+      IP_HASH_SALT: 'ci-test-ip-hash-salt-not-real'
     steps:
       - uses: actions/checkout@v4
 
