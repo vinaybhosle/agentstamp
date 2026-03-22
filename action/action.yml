@@ -1,0 +1,72 @@
+name: 'AgentStamp Verify Agent'
+description: 'Verify your AI agent trust score, stamp tier, and reputation in CI/CD'
+author: 'AgentStamp'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  wallet-address:
+    description: 'Ethereum wallet address of the agent (0x...)'
+    required: false
+  agent-id:
+    description: 'AgentStamp registry agent ID'
+    required: false
+  erc8004-id:
+    description: 'ERC-8004 on-chain agent ID (numeric)'
+    required: false
+  min-tier:
+    description: 'Minimum stamp tier required (none, free, bronze, silver, gold)'
+    required: false
+    default: 'none'
+  min-score:
+    description: 'Minimum reputation score required (0-100)'
+    required: false
+    default: '0'
+  min-endorsements:
+    description: 'Minimum endorsement count required'
+    required: false
+    default: '0'
+  fail-on-error:
+    description: 'Fail the workflow on verification failure (true/false)'
+    required: false
+    default: 'true'
+  generate-badge:
+    description: 'Generate a trust badge SVG file'
+    required: false
+    default: 'false'
+  badge-path:
+    description: 'Path to write the badge SVG'
+    required: false
+    default: '.github/badges/agentstamp.svg'
+  api-base-url:
+    description: 'AgentStamp API base URL'
+    required: false
+    default: 'https://agentstamp.org'
+
+outputs:
+  verified:
+    description: 'Whether the agent passed all threshold checks (true/false)'
+  trusted:
+    description: 'Raw trust status from API (true/false)'
+  score:
+    description: 'Reputation score (0-100)'
+  tier:
+    description: 'Stamp tier (gold, silver, bronze, free, none)'
+  label:
+    description: 'Reputation label (new, emerging, established, elite, unknown)'
+  agent-name:
+    description: 'Agent name from registry'
+  agent-id:
+    description: 'Agent ID from registry'
+  endorsements:
+    description: 'Endorsement count'
+  stamp-expires:
+    description: 'Stamp expiry date (ISO 8601)'
+  profile-url:
+    description: 'Link to agent profile on agentstamp.org'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'

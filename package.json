@@ -1,6 +1,7 @@
 {
   "name": "agentstamp",
   "version": "2.0.0",
+  "mcpName": "io.github.vinaybhosle/agentstamp",
   "description": "Stamp your agent into existence. Identity certificates, public registry, and wishing well for AI agents.",
   "main": "server.js",
   "scripts": {

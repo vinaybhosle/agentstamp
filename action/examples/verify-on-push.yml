@@ -1,0 +1,28 @@
+name: AgentStamp Trust Check
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify agent trust
+        uses: vinaybhosle/agentstamp/action@v2
+        id: trust
+        with:
+          wallet-address: '0xYourAgentWallet'
+          min-tier: 'bronze'
+          min-score: '20'
+          fail-on-error: 'true'
+          generate-badge: 'true'
+
+      - name: Use trust outputs
+        run: |
+          echo "Verified: ${{ steps.trust.outputs.verified }}"
+          echo "Score: ${{ steps.trust.outputs.score }}"
+          echo "Tier: ${{ steps.trust.outputs.tier }}"
+          echo "Agent: ${{ steps.trust.outputs.agent-name }}"
