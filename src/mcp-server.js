@@ -13,7 +13,7 @@ const { generateInsights } = require('./insights');
 function createMcpServer() {
   const server = new McpServer({
     name: 'AgentStamp',
-    version: '2.0.0',
+    version: '2.1.0',
   });
 
   // --- Tool: search_agents ---
