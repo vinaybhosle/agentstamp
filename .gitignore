@@ -36,3 +36,22 @@ sdk/python/*.egg-info/
 tmp_*.json
 tmp_*.py
 tmp_*.js
+
+# Local ops scripts (not for GitHub)
+parse_*.py
+send_*.py
+get_*.py
+check_*.py
+do_*.sh
+*_dm_check*.json
+*_dm_send*.json
+*_dm_reply*.json
+*_dm_sent*.json
+*_tg_*.json
+*_home.json
+*_post.json
+*_profile*.json
+*_convo*.json
+convo_*.json
+dm_*.json
+content/

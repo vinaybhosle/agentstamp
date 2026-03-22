@@ -1,0 +1,16 @@
+{
+  "name": "agentstamp-verify",
+  "version": "1.4.0",
+  "description": "AgentStamp trust verification SDK — verify AI agent identity and trust scores",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./express": "./express.js"
+  },
+  "license": "MIT",
+  "keywords": ["agentstamp", "trust", "verification", "ai-agent", "x402"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vinaybhosle/agentstamp"
+  }
+}
