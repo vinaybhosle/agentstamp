@@ -1,10 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const { generatePassport, generateA2ACard } = require('../passport');
+const { validateWalletAddress } = require('../utils/validators');
 
 // GET /api/v1/passport/:walletAddress — Full signed passport
 router.get('/:walletAddress', (req, res) => {
   try {
+    const walletCheck = validateWalletAddress(req.params.walletAddress);
+    if (!walletCheck.valid) {
+      return res.status(400).json({ success: false, error: 'Invalid wallet address format' });
+    }
+
     const passport = generatePassport(req.params.walletAddress);
     if (!passport) {
       return res.status(404).json({
@@ -32,6 +38,11 @@ router.get('/:walletAddress', (req, res) => {
 // GET /api/v1/passport/:walletAddress/a2a — A2A Agent Card only
 router.get('/:walletAddress/a2a', (req, res) => {
   try {
+    const walletCheck = validateWalletAddress(req.params.walletAddress);
+    if (!walletCheck.valid) {
+      return res.status(400).json({ success: false, error: 'Invalid wallet address format' });
+    }
+
     const card = generateA2ACard(req.params.walletAddress);
     if (!card) {
       return res.status(404).json({

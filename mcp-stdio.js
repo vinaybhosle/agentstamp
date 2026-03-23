@@ -32,10 +32,19 @@ if (!process.env.IP_HASH_SALT) {
 // Use a temp directory for database + keys so stdio mode doesn't touch production data
 const tmpDir = path.join(os.tmpdir(), 'agentstamp-mcp-stdio');
 if (!fs.existsSync(tmpDir)) {
-  fs.mkdirSync(tmpDir, { recursive: true });
+  fs.mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
+} else {
+  // Ensure existing dir has restricted permissions
+  try { fs.chmodSync(tmpDir, 0o700); } catch { /* best-effort on non-POSIX */ }
 }
 if (!process.env.DB_PATH) {
   process.env.DB_PATH = path.join(tmpDir, 'agentstamp-stdio.db');
+} else if (!process.env.DB_PATH.includes(os.tmpdir()) && process.env.WALLET_ADDRESS === '0x0000000000000000000000000000000000000000') {
+  // Safety: if DB_PATH points to a non-temp location but we're using placeholder secrets,
+  // refuse to start — prevents accidental writes to production DB with weak secrets
+  process.stderr.write('FATAL: DB_PATH points to a non-temp directory but WALLET_ADDRESS is not set.\n');
+  process.stderr.write('Set real env vars (WALLET_ADDRESS, BLIND_TOKEN_SECRET) or remove DB_PATH to use inspection mode.\n');
+  process.exit(1);
 }
 if (!process.env.SIGNING_KEY_PATH) {
   process.env.SIGNING_KEY_PATH = path.join(tmpDir, 'ed25519_private.pem');

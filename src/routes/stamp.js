@@ -428,8 +428,8 @@ router.post('/blind-register', requireSignature({ required: true, action: 'blind
     const existing = db.prepare('SELECT token FROM blind_tokens WHERE token = ?').get(token);
 
     db.prepare(
-      "INSERT OR REPLACE INTO blind_tokens (token, wallet_address, created_at) VALUES (?, ?, datetime('now'))"
-    ).run(token, req.body.wallet_address);
+      "INSERT OR REPLACE INTO blind_tokens (token, wallet_address, nonce, created_at) VALUES (?, ?, ?, datetime('now'))"
+    ).run(token, req.body.wallet_address, req.body.nonce);
 
     const statusCode = existing ? 200 : 201;
     res.status(statusCode).json({ success: true, token });

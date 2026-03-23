@@ -7,11 +7,11 @@
  * Each describe block uses a fresh wallet so cooldowns never interfere.
  */
 
-const { makeTestWallet, get, post } = require('./helpers');
+const { makeSignedWallet, get, post } = require('./helpers');
 
 describe('Flow 1 — Stamp Lifecycle: mint → verify → tombstone', () => {
   let stampId;
-  const wallet = makeTestWallet();
+  const wallet = makeSignedWallet();
 
   // ── Step 1: Mint a free stamp ──────────────────────────────────────────────
   describe('Step 1: POST /api/v1/stamp/mint/free', () => {
@@ -19,7 +19,7 @@ describe('Flow 1 — Stamp Lifecycle: mint → verify → tombstone', () => {
 
     beforeAll(async () => {
       mintRes = await post('/api/v1/stamp/mint/free', {
-        headers: { 'x-wallet-address': wallet },
+        headers: await wallet.signHeaders('mint'),
       });
     });
 
@@ -42,7 +42,7 @@ describe('Flow 1 — Stamp Lifecycle: mint → verify → tombstone', () => {
     });
 
     it('stamp wallet_address matches request wallet', () => {
-      expect(mintRes.body.stamp.wallet_address).toBe(wallet);
+      expect(mintRes.body.stamp.wallet_address).toBe(wallet.address);
     });
 
     it('stamp has issued_at and expires_at', () => {
@@ -118,9 +118,10 @@ describe('Flow 1 — Stamp Lifecycle: mint → verify → tombstone', () => {
     let tombstoneRes;
 
     beforeAll(async () => {
+      const body = { outcome: 'completed' };
       tombstoneRes = await post(`/api/v1/stamp/${stampId}/tombstone`, {
-        headers: { 'x-wallet-address': wallet },
-        body: { outcome: 'completed' },
+        headers: await wallet.signHeaders('tombstone', body),
+        body,
       });
     });
 
@@ -175,9 +176,10 @@ describe('Flow 1 — Stamp Lifecycle: mint → verify → tombstone', () => {
     let retombstoneRes;
 
     beforeAll(async () => {
+      const body = { outcome: 'completed' };
       retombstoneRes = await post(`/api/v1/stamp/${stampId}/tombstone`, {
-        headers: { 'x-wallet-address': wallet },
-        body: { outcome: 'completed' },
+        headers: await wallet.signHeaders('tombstone', body),
+        body,
       });
     });
 
@@ -200,7 +202,7 @@ describe('Flow 1 — Stamp Lifecycle: mint → verify → tombstone', () => {
 
     beforeAll(async () => {
       cooldownRes = await post('/api/v1/stamp/mint/free', {
-        headers: { 'x-wallet-address': wallet },
+        headers: await wallet.signHeaders('mint'),
       });
     });
 

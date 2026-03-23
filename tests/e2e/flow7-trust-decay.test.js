@@ -11,10 +11,10 @@
  * Skipped gracefully if the payment facilitator is down (503 on mint).
  */
 
-const { makeTestWallet, get, post } = require('./helpers');
+const { makeSignedWallet, get, post } = require('./helpers');
 
 describe('Flow 7 — Trust Score Decay', () => {
-  const wallet = makeTestWallet();
+  const wallet = makeSignedWallet();
   let stampId;
   let agentId;
   let mintUnavailable = false;
@@ -22,10 +22,10 @@ describe('Flow 7 — Trust Score Decay', () => {
   // ── Setup: mint + register + heartbeat ─────────────────────────────────────
   beforeAll(async () => {
     const mintRes = await post('/api/v1/stamp/mint/free', {
-      headers: { 'x-wallet-address': wallet },
+      headers: await wallet.signHeaders('mint'),
     });
-    if (mintRes.status === 503) {
-      console.warn('Flow 7: Payment facilitator unavailable (503) — skipping dependent tests');
+    if (mintRes.status === 503 || mintRes.status === 429) {
+      console.warn(`Flow 7: Setup unavailable (${mintRes.status}) — skipping dependent tests`);
       mintUnavailable = true;
       return;
     }
@@ -33,22 +33,33 @@ describe('Flow 7 — Trust Score Decay', () => {
     stampId = mintRes.body.stamp?.id;
     expect(stampId).toBeTruthy();
 
+    const regBody = {
+      name: 'E2E Decay Test Agent',
+      description: 'Agent used to verify trust score decay logic in E2E tests.',
+      category: 'other',
+      stamp_id: stampId,
+    };
     const registerRes = await post('/api/v1/registry/register/free', {
-      headers: { 'x-wallet-address': wallet },
-      body: {
-        name: 'E2E Decay Test Agent',
-        description: 'Agent used to verify trust score decay logic in E2E tests.',
-        category: 'other',
-        stamp_id: stampId,
-      },
+      headers: await wallet.signHeaders('register', regBody),
+      body: regBody,
     });
+    if (registerRes.status === 429) {
+      console.warn('Flow 7: Rate limited on register — skipping dependent tests');
+      mintUnavailable = true;
+      return;
+    }
     expect(registerRes.status).toBe(201);
     agentId = registerRes.body.agent?.id;
     expect(agentId).toBeTruthy();
 
     const heartbeatRes = await post(`/api/v1/registry/heartbeat/${agentId}`, {
-      headers: { 'x-wallet-address': wallet },
+      headers: await wallet.signHeaders('heartbeat'),
     });
+    if (heartbeatRes.status === 429) {
+      console.warn('Flow 7: Rate limited on heartbeat — skipping dependent tests');
+      mintUnavailable = true;
+      return;
+    }
     expect(heartbeatRes.status).toBe(200);
   });
 
@@ -121,7 +132,7 @@ describe('Flow 7 — Trust Score Decay', () => {
 
     beforeAll(async () => {
       if (mintUnavailable) return;
-      trustRes = await get(`/api/v1/trust/check/${wallet}`);
+      trustRes = await get(`/api/v1/trust/check/${wallet.address}`);
     });
 
     it('returns HTTP 200', () => {

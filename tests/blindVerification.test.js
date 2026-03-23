@@ -19,10 +19,10 @@ function computeBlindToken(wallet, nonce) {
   return crypto.createHmac('sha256', BLIND_TOKEN_SECRET).update(wallet + nonce).digest('hex');
 }
 
-function insertBlindToken(db, token, wallet) {
+function insertBlindToken(db, token, wallet, nonce = 'test-nonce') {
   db.prepare(
-    `INSERT OR REPLACE INTO blind_tokens (token, wallet_address, created_at) VALUES (?, ?, ?)`
-  ).run(token, wallet, new Date().toISOString());
+    `INSERT OR REPLACE INTO blind_tokens (token, wallet_address, nonce, created_at) VALUES (?, ?, ?, ?)`
+  ).run(token, wallet, nonce, new Date().toISOString());
 }
 
 function insertStamp(db, { wallet = WALLET, tier = 'gold', revoked = 0, expiresAt = FUTURE } = {}) {
@@ -79,8 +79,8 @@ describe('Blind Verification', () => {
     expect(row).toBeDefined();
     expect(row.token).toBe(expected);
     expect(row.wallet_address).toBe(WALLET);
-    // Nonce is NOT stored in the database
-    expect(row).not.toHaveProperty('nonce');
+    // Nonce is stored in the database for audit trail
+    expect(row).toHaveProperty('nonce');
     // Verify it's a valid 64-char hex HMAC-SHA256
     expect(row.token).toMatch(/^[a-f0-9]{64}$/);
   });

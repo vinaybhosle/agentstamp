@@ -11,30 +11,33 @@ const globalLimiter = rateLimit({
 });
 
 // Strict limiter for paid mutation routes (mint, register, endorse, wish, grant)
+const mutationMax = parseInt(process.env.RATE_LIMIT_MUTATION_MAX, 10) || 10;
 const mutationLimiter = rateLimit({
   windowMs: 60_000,
-  max: 10,
+  max: mutationMax,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, error: 'Too many mutation requests. Max 10 per minute.' },
+  message: { success: false, error: `Too many mutation requests. Max ${mutationMax} per minute.` },
 });
 
 // Read-heavy limiter for free browse/search endpoints
+const readMax = parseInt(process.env.RATE_LIMIT_READ_MAX, 10) || 60;
 const readLimiter = rateLimit({
   windowMs: 60_000,
-  max: 60,
+  max: readMax,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, error: 'Too many read requests. Max 60 per minute.' },
+  message: { success: false, error: `Too many read requests. Max ${readMax} per minute.` },
 });
 
 // Analytics limiter — admin-only, still bounded
+const analyticsMax = parseInt(process.env.RATE_LIMIT_ANALYTICS_MAX, 10) || 20;
 const analyticsLimiter = rateLimit({
   windowMs: 60_000,
-  max: 20,
+  max: analyticsMax,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, error: 'Too many analytics requests. Max 20 per minute.' },
+  message: { success: false, error: `Too many analytics requests. Max ${analyticsMax} per minute.` },
 });
 
 module.exports = { globalLimiter, mutationLimiter, readLimiter, analyticsLimiter };

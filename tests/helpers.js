@@ -171,6 +171,7 @@ function createTestDb() {
     CREATE TABLE blind_tokens (
       token TEXT PRIMARY KEY,
       wallet_address TEXT NOT NULL,
+      nonce TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_blind_tokens_wallet ON blind_tokens(wallet_address);

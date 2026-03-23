@@ -2,7 +2,7 @@
   "name": "AgentStamp",
   "description": "The identity, registry, and wishing well for AI agents. Reputation scores, cross-protocol passports, and live MCP discovery.",
   "url": "https://agentstamp.org",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "capabilities": ["stamp", "registry", "well", "reputation", "passport", "insights"],
   "protocols": ["x402", "mcp", "a2a"],
   "mcp_endpoint": "https://agentstamp.org/mcp",

@@ -5,34 +5,15 @@ const { getDb, resolvePrimaryWallet } = require('../database');
 const { generateWebhookId } = require('../utils/generateId');
 const { requireSignature } = require('../middleware/walletSignature');
 const dns = require('dns');
+const { isPrivateIp } = require('../utils/network');
 
-const VALID_EVENTS = ['stamp_minted', 'stamp_expiring', 'endorsement_received', 'wish_granted', 'wish_matched', 'reputation_changed', 'agent_registered'];
-
-/**
- * Check if an IP address is private/internal.
- * Covers IPv4, IPv6, IPv4-mapped IPv6, decimal/hex IP forms.
- */
-function isPrivateIp(ip) {
-  // Normalize IPv4-mapped IPv6 (::ffff:x.x.x.x)
-  const v4Mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-  const normalized = v4Mapped ? v4Mapped[1] : ip;
-
-  // IPv4 private ranges
-  if (/^127\./.test(normalized)) return true;
-  if (/^10\./.test(normalized)) return true;
-  if (/^192\.168\./.test(normalized)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(normalized)) return true;
-  if (/^169\.254\./.test(normalized)) return true;
-  if (normalized === '0.0.0.0') return true;
-
-  // IPv6 private ranges
-  if (ip === '::1' || ip === '::') return true;
-  if (/^fe80:/i.test(ip)) return true; // link-local
-  if (/^fc00:/i.test(ip) || /^fd[0-9a-f]{2}:/i.test(ip)) return true; // unique local
-  if (/^::ffff:(127\.|10\.|192\.168\.|0\.)/i.test(ip)) return true;
-
-  return false;
-}
+const VALID_EVENTS = [
+  'stamp_minted', 'stamp_expiring', 'stamp_tombstoned',
+  'endorsement_received', 'wish_granted', 'wish_matched',
+  'reputation_changed', 'agent_registered',
+  'wallet_linked', 'wallet_unlinked',
+  'erc8004_linked', 'delegation_received',
+];
 
 // POST /api/v1/webhooks/register — Register a webhook
 router.post('/register', requireSignature({ required: true, action: 'webhook_register' }), async (req, res) => {

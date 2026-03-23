@@ -29,6 +29,15 @@ router.get('/check/:walletAddress', async (req, res) => {
     const db = getDb();
     let inputWallet = req.params.walletAddress;
 
+    // Validate input format: must be a wallet address or erc8004:<digits>
+    if (!inputWallet.startsWith('erc8004:')) {
+      const { validateWalletAddress } = require('../utils/validators');
+      const walletCheck = validateWalletAddress(inputWallet);
+      if (!walletCheck.valid) {
+        return res.status(400).json({ success: false, error: 'Invalid wallet address format. Expected Ethereum (0x + 40 hex) or Solana (base58, 32-44 chars) or erc8004:<agentId>.' });
+      }
+    }
+
     // Handle erc8004:<agentId> prefix — resolve to wallet via bridge
     if (inputWallet.startsWith('erc8004:')) {
       const erc8004Id = inputWallet.replace('erc8004:', '');
@@ -304,8 +313,8 @@ router.get('/network', (req, res) => {
       register_url: 'https://agentstamp.org/register',
     };
 
-    // Cache for 60 seconds
-    _networkCache = { data: responseBody, expiresAt: Date.now() + NETWORK_CACHE_TTL_MS };
+    // Cache for 60 seconds (frozen to prevent mutation)
+    _networkCache = Object.freeze({ data: Object.freeze(responseBody), expiresAt: Date.now() + NETWORK_CACHE_TTL_MS });
 
     res.json(responseBody);
   } catch (err) {

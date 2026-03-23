@@ -19,10 +19,23 @@ function buildSignatureMessage(action, timestamp, bodyHash) {
   return `AgentStamp:${action}:${timestamp}`;
 }
 
+function sortKeysDeep(obj) {
+  if (Array.isArray(obj)) return obj.map(sortKeysDeep);
+  if (obj && typeof obj === 'object') {
+    const sorted = {};
+    for (const key of Object.keys(obj).sort()) {
+      sorted[key] = sortKeysDeep(obj[key]);
+    }
+    return sorted;
+  }
+  return obj;
+}
+
 function hashRequestBody(body) {
   if (!body || typeof body !== 'object' || Object.keys(body).length === 0) return null;
-  const canonical = JSON.stringify(body);
-  return crypto.createHash('sha256').update(canonical).digest('hex').slice(0, 16);
+  // Canonical JSON: sort keys deterministically so different key orderings produce the same hash
+  const canonical = JSON.stringify(sortKeysDeep(body));
+  return crypto.createHash('sha256').update(canonical).digest('hex');
 }
 
 function verifyEvmSignature(message, signature, expectedAddress) {

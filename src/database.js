@@ -224,6 +224,7 @@ function initialize() {
     CREATE TABLE IF NOT EXISTS blind_tokens (
       token TEXT PRIMARY KEY,
       wallet_address TEXT NOT NULL,
+      nonce TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_blind_tokens_wallet ON blind_tokens(wallet_address);
@@ -276,6 +277,13 @@ function initialize() {
   // Add wallet_verified column for cryptographic wallet ownership proof
   try {
     db.exec('ALTER TABLE agents ADD COLUMN wallet_verified INTEGER DEFAULT 0');
+  } catch (e) {
+    // Column already exists — safe to ignore
+  }
+
+  // Add nonce column to blind_tokens for audit trail (migration-safe)
+  try {
+    db.exec("ALTER TABLE blind_tokens ADD COLUMN nonce TEXT NOT NULL DEFAULT ''");
   } catch (e) {
     // Column already exists — safe to ignore
   }

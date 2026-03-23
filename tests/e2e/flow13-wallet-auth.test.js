@@ -80,9 +80,9 @@ describe('Flow 13 — Wallet Signature Auth', () => {
 
   let mintUnavailable = false;
 
-  // ── Step 1: POST /stamp/mint/free WITHOUT signature succeeds ──────────────
-  // Free mint has requireSignature({ required: false }) — signature is optional
-  describe('Step 1: POST /api/v1/stamp/mint/free — signature optional', () => {
+  // ── Step 1: POST /stamp/mint/free WITHOUT signature → 401 ────────────────
+  // Free mint now requires a signature (requireSignature({ required: true }))
+  describe('Step 1: POST /api/v1/stamp/mint/free — signature now required', () => {
     let res;
 
     beforeAll(async () => {
@@ -90,25 +90,18 @@ describe('Flow 13 — Wallet Signature Auth', () => {
         headers: { 'x-wallet-address': unsignedWallet },
         // no x-wallet-signature headers
       });
-      if (res.status === 503) {
-        mintUnavailable = true;
-        console.warn('Flow 13: Payment facilitator unavailable (503) — skipping mint-dependent tests');
-      }
     });
 
-    it('returns HTTP 201 without signature (or 503 if facilitator down)', () => {
-      if (mintUnavailable) return;
-      expect(res.status).toBe(201);
+    it('returns HTTP 401 without signature (signature is now required)', () => {
+      expect(res.status).toBe(401);
     });
 
-    it('returns success: true', () => {
-      if (mintUnavailable) return;
-      expect(res.body.success).toBe(true);
+    it('returns success: false', () => {
+      expect(res.body.success).toBe(false);
     });
 
-    it('stamp.tier is free', () => {
-      if (mintUnavailable) return;
-      expect(res.body.stamp?.tier).toBe('free');
+    it('error message mentions signature', () => {
+      expect(res.body.error).toMatch(/signature/i);
     });
   });
 

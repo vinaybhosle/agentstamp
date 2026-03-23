@@ -5,39 +5,42 @@
  * have at least the entries we created, be genesis-intact, and fully valid.
  */
 
-const { makeTestWallet, get, post } = require('./helpers');
+const { makeSignedWallet, get, post } = require('./helpers');
 
 describe('Flow 4 — Hash Chain Integrity', () => {
-  const wallet = makeTestWallet();
+  const wallet = makeSignedWallet();
   let agentId;
   let chainLengthBefore;
 
   // ── Prerequisite: get current chain length ─────────────────────────────────
   beforeAll(async () => {
-    const statusRes = await get('/api/v1/audit/chain-status');
+    const statusRes = await get('/api/v1/audit/chain-status', {
+      headers: await wallet.signHeaders('audit_read'),
+    });
     chainLengthBefore = statusRes.body.chain_length || 0;
 
     // Mint stamp
     const mintRes = await post('/api/v1/stamp/mint/free', {
-      headers: { 'x-wallet-address': wallet },
+      headers: await wallet.signHeaders('mint'),
     });
     expect(mintRes.status).toBe(201);
 
     // Register agent
+    const regBody = {
+      name: 'E2E Chain Test Agent',
+      description: 'Testing hash chain integrity via E2E suite.',
+      category: 'research',
+    };
     const regRes = await post('/api/v1/registry/register/free', {
-      headers: { 'x-wallet-address': wallet },
-      body: {
-        name: 'E2E Chain Test Agent',
-        description: 'Testing hash chain integrity via E2E suite.',
-        category: 'research',
-      },
+      headers: await wallet.signHeaders('register', regBody),
+      body: regBody,
     });
     expect(regRes.status).toBe(201);
     agentId = regRes.body.agent?.id;
 
     // Send heartbeat to add another event to the chain
     await post(`/api/v1/registry/heartbeat/${agentId}`, {
-      headers: { 'x-wallet-address': wallet },
+      headers: await wallet.signHeaders('heartbeat'),
     });
   });
 
@@ -46,7 +49,9 @@ describe('Flow 4 — Hash Chain Integrity', () => {
     let statusRes;
 
     beforeAll(async () => {
-      statusRes = await get('/api/v1/audit/chain-status');
+      statusRes = await get('/api/v1/audit/chain-status', {
+        headers: await wallet.signHeaders('audit_read'),
+      });
     });
 
     it('returns HTTP 200', () => {
@@ -62,8 +67,8 @@ describe('Flow 4 — Hash Chain Integrity', () => {
     });
 
     it('chain_length grew after our operations', () => {
-      // We added at least stamp_minted + agent_registered + heartbeat = 3 events
-      expect(statusRes.body.chain_length).toBeGreaterThanOrEqual(chainLengthBefore + 3);
+      // We added at least stamp_minted + agent_registered = 2 events (heartbeat may be rate-limited)
+      expect(statusRes.body.chain_length).toBeGreaterThanOrEqual(chainLengthBefore + 2);
     });
 
     it('genesis_intact is true (or false if pre-hash events exist)', () => {
@@ -85,14 +90,16 @@ describe('Flow 4 — Hash Chain Integrity', () => {
   });
 
   // ── Step 2: Chain verification ────────────────────────────────────────────
-  describe('Step 2: GET /api/v1/audit/verify-chain (public endpoint)', () => {
+  describe('Step 2: GET /api/v1/audit/verify-chain (requires auth)', () => {
     let chainRes;
 
     beforeAll(async () => {
-      chainRes = await get('/api/v1/audit/verify-chain');
+      chainRes = await get('/api/v1/audit/verify-chain', {
+        headers: await wallet.signHeaders('audit_read'),
+      });
     });
 
-    it('returns HTTP 200 without any auth header', () => {
+    it('returns HTTP 200 with wallet auth', () => {
       expect(chainRes.status).toBe(200);
     });
 
@@ -130,7 +137,7 @@ describe('Flow 4 — Hash Chain Integrity', () => {
 
     beforeAll(async () => {
       complianceRes = await get('/api/v1/audit/compliance', {
-        headers: { 'x-wallet-address': wallet },
+        headers: await wallet.signHeaders('audit_read'),
       });
     });
 

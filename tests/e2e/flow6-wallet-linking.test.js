@@ -2,20 +2,23 @@
  * Flow 6 — Wallet Linking + Cross-Chain Trust
  *
  * link → view links → trust resolves via secondary → unlink
+ *
+ * Dual-signature requirement: wallet/link requires BOTH:
+ *   - Primary wallet signature via headers (x-wallet-address, x-wallet-signature, x-wallet-timestamp)
+ *   - Secondary wallet signature via body (linked_wallet_signature, linked_wallet_timestamp)
+ * Both wallets are EVM wallets created with makeSignedWallet() so we can sign for both.
  */
 
-const { makeTestWallet, get, post } = require('./helpers');
-
-// A valid Solana-style address (base58, 32-44 chars) that passes the validator
-const SOLANA_SECONDARY = 'So11111111111111111111111111111111111111112'; // 44 chars, valid base58
+const { makeSignedWallet, makeTestWallet, get, post } = require('./helpers');
 
 describe('Flow 6 — Wallet Linking + Cross-Chain Trust', () => {
-  const primaryWallet = makeTestWallet();
+  const primaryWallet = makeSignedWallet();
+  const secondaryWallet = makeSignedWallet();
 
   // Ensure the primary has a stamp so trust check returns real data
   beforeAll(async () => {
     const res = await post('/api/v1/stamp/mint/free', {
-      headers: { 'x-wallet-address': primaryWallet },
+      headers: await primaryWallet.signHeaders('mint'),
     });
     expect(res.status).toBe(201);
   });
@@ -25,12 +28,17 @@ describe('Flow 6 — Wallet Linking + Cross-Chain Trust', () => {
     let linkRes;
 
     beforeAll(async () => {
+      // Get the secondary wallet's signature proving it consents to being linked
+      const linkedSigHeaders = await secondaryWallet.signHeaders('wallet_link');
+      const body = {
+        linked_wallet: secondaryWallet.address,
+        chain_hint: 'evm',
+        linked_wallet_signature: linkedSigHeaders['x-wallet-signature'],
+        linked_wallet_timestamp: linkedSigHeaders['x-wallet-timestamp'],
+      };
       linkRes = await post('/api/v1/wallet/link', {
-        headers: { 'x-wallet-address': primaryWallet },
-        body: {
-          linked_wallet: SOLANA_SECONDARY,
-          chain_hint: 'solana',
-        },
+        headers: await primaryWallet.signHeaders('wallet_link', body),
+        body,
       });
     });
 
@@ -43,19 +51,19 @@ describe('Flow 6 — Wallet Linking + Cross-Chain Trust', () => {
     });
 
     it('wallets.primary matches primaryWallet', () => {
-      expect(linkRes.body.wallets.primary).toBe(primaryWallet);
+      expect(linkRes.body.wallets.primary).toBe(primaryWallet.address);
     });
 
     it('linked array contains the secondary wallet', () => {
       const addresses = linkRes.body.wallets.linked.map((l) => l.address);
-      expect(addresses).toContain(SOLANA_SECONDARY);
+      expect(addresses).toContain(secondaryWallet.address);
     });
 
-    it('linked wallet has chain hint set to solana', () => {
+    it('linked wallet has chain hint set to evm', () => {
       const linked = linkRes.body.wallets.linked.find(
-        (l) => l.address === SOLANA_SECONDARY
+        (l) => l.address.toLowerCase() === secondaryWallet.address.toLowerCase()
       );
-      expect(linked?.chain).toBe('solana');
+      expect(linked?.chain).toBe('evm');
     });
   });
 
@@ -64,7 +72,7 @@ describe('Flow 6 — Wallet Linking + Cross-Chain Trust', () => {
     let linksRes;
 
     beforeAll(async () => {
-      linksRes = await get(`/api/v1/wallet/links/${primaryWallet}`);
+      linksRes = await get(`/api/v1/wallet/links/${primaryWallet.address}`);
     });
 
     it('returns HTTP 200', () => {
@@ -76,12 +84,12 @@ describe('Flow 6 — Wallet Linking + Cross-Chain Trust', () => {
     });
 
     it('primary is the primary wallet', () => {
-      expect(linksRes.body.primary).toBe(primaryWallet);
+      expect(linksRes.body.primary).toBe(primaryWallet.address);
     });
 
     it('linked array contains the secondary wallet', () => {
-      const addresses = linksRes.body.linked.map((l) => l.address);
-      expect(addresses).toContain(SOLANA_SECONDARY);
+      const addresses = linksRes.body.linked.map((l) => l.address.toLowerCase());
+      expect(addresses).toContain(secondaryWallet.address.toLowerCase());
     });
 
     it('total is at least 1', () => {
@@ -90,11 +98,11 @@ describe('Flow 6 — Wallet Linking + Cross-Chain Trust', () => {
   });
 
   // ── Step 3: Trust check via secondary wallet resolves to primary ──────────
-  describe('Step 3: GET /api/v1/trust/check/:solanaWallet', () => {
+  describe('Step 3: GET /api/v1/trust/check/:secondaryWallet', () => {
     let trustRes;
 
     beforeAll(async () => {
-      trustRes = await get(`/api/v1/trust/check/${SOLANA_SECONDARY}`);
+      trustRes = await get(`/api/v1/trust/check/${secondaryWallet.address}`);
     });
 
     it('returns HTTP 200', () => {
@@ -106,11 +114,11 @@ describe('Flow 6 — Wallet Linking + Cross-Chain Trust', () => {
     });
 
     it('resolved_to is the primary wallet', () => {
-      expect(trustRes.body.resolved_to).toBe(primaryWallet);
+      expect(trustRes.body.resolved_to.toLowerCase()).toBe(primaryWallet.address.toLowerCase());
     });
 
-    it('linked_from is the solana secondary wallet', () => {
-      expect(trustRes.body.linked_from).toBe(SOLANA_SECONDARY);
+    it('linked_from is the secondary wallet', () => {
+      expect(trustRes.body.linked_from.toLowerCase()).toBe(secondaryWallet.address.toLowerCase());
     });
 
     it('stamp tier is free', () => {
@@ -123,9 +131,10 @@ describe('Flow 6 — Wallet Linking + Cross-Chain Trust', () => {
     let unlinkRes;
 
     beforeAll(async () => {
+      const body = { linked_wallet: secondaryWallet.address };
       unlinkRes = await post('/api/v1/wallet/unlink', {
-        headers: { 'x-wallet-address': primaryWallet },
-        body: { linked_wallet: SOLANA_SECONDARY },
+        headers: await primaryWallet.signHeaders('wallet_unlink', body),
+        body,
       });
     });
 
@@ -139,31 +148,32 @@ describe('Flow 6 — Wallet Linking + Cross-Chain Trust', () => {
 
     it('linked array no longer contains the secondary wallet', () => {
       const addresses = (unlinkRes.body.wallets?.linked || []).map(
-        (l) => l.address
+        (l) => l.address.toLowerCase()
       );
-      expect(addresses).not.toContain(SOLANA_SECONDARY);
+      expect(addresses).not.toContain(secondaryWallet.address.toLowerCase());
     });
   });
 
   // ── Step 5: Confirm link is gone ─────────────────────────────────────────
   describe('Step 5: GET /api/v1/wallet/links/:wallet after unlink', () => {
     it('linked array is empty after unlink', async () => {
-      const res = await get(`/api/v1/wallet/links/${primaryWallet}`);
+      const res = await get(`/api/v1/wallet/links/${primaryWallet.address}`);
       expect(res.status).toBe(200);
-      const addresses = res.body.linked.map((l) => l.address);
-      expect(addresses).not.toContain(SOLANA_SECONDARY);
+      const addresses = res.body.linked.map((l) => l.address.toLowerCase());
+      expect(addresses).not.toContain(secondaryWallet.address.toLowerCase());
     });
   });
 
   // ── Step 6: Trust check via secondary wallet → unresolved after unlink ────
   describe('Step 6: Trust via secondary wallet after unlink', () => {
     it('no longer resolves to primary', async () => {
-      const res = await get(`/api/v1/trust/check/${SOLANA_SECONDARY}`);
+      const res = await get(`/api/v1/trust/check/${secondaryWallet.address}`);
       expect(res.status).toBe(200);
-      // After unlink the solana wallet is standalone — it has no stamp of its own
+      // After unlink the secondary wallet is standalone — it has no stamp of its own
       // so it should come back as trusted:false OR not have linked_from set
       const stillResolved =
-        res.body.resolved_to === primaryWallet && res.body.trusted === true;
+        res.body.resolved_to?.toLowerCase() === primaryWallet.address.toLowerCase() &&
+        res.body.trusted === true;
       expect(stillResolved).toBe(false);
     });
   });
@@ -171,9 +181,15 @@ describe('Flow 6 — Wallet Linking + Cross-Chain Trust', () => {
   // ── Edge case: Self-link → 400 ───────────────────────────────────────────
   describe('Edge: Cannot link wallet to itself', () => {
     it('returns 400', async () => {
+      const selfSigHeaders = await primaryWallet.signHeaders('wallet_link');
+      const body = {
+        linked_wallet: primaryWallet.address,
+        linked_wallet_signature: selfSigHeaders['x-wallet-signature'],
+        linked_wallet_timestamp: selfSigHeaders['x-wallet-timestamp'],
+      };
       const res = await post('/api/v1/wallet/link', {
-        headers: { 'x-wallet-address': primaryWallet },
-        body: { linked_wallet: primaryWallet },
+        headers: await primaryWallet.signHeaders('wallet_link', body),
+        body,
       });
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/itself/i);
@@ -184,9 +200,10 @@ describe('Flow 6 — Wallet Linking + Cross-Chain Trust', () => {
   describe('Edge: Unlinking a wallet that was never linked → 404', () => {
     it('returns 404', async () => {
       const neverLinked = makeTestWallet();
+      const body = { linked_wallet: neverLinked };
       const res = await post('/api/v1/wallet/unlink', {
-        headers: { 'x-wallet-address': primaryWallet },
-        body: { linked_wallet: neverLinked },
+        headers: await primaryWallet.signHeaders('wallet_unlink', body),
+        body,
       });
       expect(res.status).toBe(404);
     });
@@ -196,7 +213,7 @@ describe('Flow 6 — Wallet Linking + Cross-Chain Trust', () => {
   describe('Edge: Link without wallet header → 401', () => {
     it('returns 401', async () => {
       const res = await post('/api/v1/wallet/link', {
-        body: { linked_wallet: SOLANA_SECONDARY },
+        body: { linked_wallet: secondaryWallet.address },
       });
       expect(res.status).toBe(401);
     });

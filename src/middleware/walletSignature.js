@@ -1,5 +1,9 @@
 const { verifyWalletSignature, buildSignatureMessage, hashRequestBody, TIMESTAMP_WINDOW_SECONDS } = require('../walletAuth');
 
+// Track legacy signature usage for deprecation monitoring
+let _legacySignatureCount = 0;
+function getLegacySignatureCount() { return _legacySignatureCount; }
+
 function requireSignature(options = {}) {
   const { required = false, action = 'unknown' } = options;
 
@@ -56,7 +60,8 @@ function requireSignature(options = {}) {
       result = verifyWalletSignature(legacyMessage, signature, walletAddress);
       if (result.valid) {
         legacyMode = true;
-        console.warn(`DEPRECATION: Signature accepted without body hash from wallet ${walletAddress.slice(0, 10)}... — action: ${action}`);
+        _legacySignatureCount++;
+        console.warn(`DEPRECATION: Signature accepted without body hash from wallet ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)} — action: ${action} (total: ${_legacySignatureCount})`);
         res.setHeader('X-AgentStamp-Deprecation', 'body-hash-required-after-2026-04-22');
       }
     }
@@ -91,4 +96,4 @@ function requireSignature(options = {}) {
   };
 }
 
-module.exports = { requireSignature };
+module.exports = { requireSignature, getLegacySignatureCount };

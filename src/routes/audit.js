@@ -1,22 +1,29 @@
 const express = require('express');
 const router = express.Router();
 const { getDb, resolvePrimaryWallet } = require('../database');
-const { STAMP_EVENT_OUTCOMES } = require('../utils/validators');
+const { STAMP_EVENT_OUTCOMES, validateWalletAddress } = require('../utils/validators');
 const { timingSafeCompare } = require('../utils/timingSafeCompare');
+const { requireSignature } = require('../middleware/walletSignature');
 
-// Middleware: require wallet-based auth or admin key for sensitive audit endpoints
+// Middleware: require wallet-based auth (with signature) or admin key for audit endpoints
+// Without signature verification, anyone who knows a wallet address could query its audit trail.
+// Wallet addresses are public (leaderboards, profiles), so header-only auth is insufficient.
 function requireWalletOrAdmin(req, res, next) {
   const adminKey = process.env.ADMIN_KEY;
   if (adminKey && req.headers['x-admin-key'] && timingSafeCompare(req.headers['x-admin-key'], adminKey, adminKey)) {
     req.isAdmin = true;
     return next();
   }
-  const wallet = req.headers['x-wallet-address'];
-  if (!wallet) {
-    return res.status(401).json({ success: false, error: 'x-wallet-address header or x-admin-key required' });
-  }
-  req.scopedWallet = resolvePrimaryWallet(wallet);
-  next();
+  // For non-admin callers, require wallet signature to prove ownership
+  requireSignature({ required: true, action: 'audit_read' })(req, res, (err) => {
+    if (err) return next(err);
+    const wallet = req.headers['x-wallet-address'];
+    if (!wallet) {
+      return res.status(401).json({ success: false, error: 'x-wallet-address header with valid signature or x-admin-key required' });
+    }
+    req.scopedWallet = resolvePrimaryWallet(wallet);
+    next();
+  });
 }
 
 // Helper: validate ISO8601 date query params
@@ -50,6 +57,10 @@ router.get('/events', requireWalletOrAdmin, (req, res) => {
       conditions.push('wallet_address = ?');
       params.push(req.scopedWallet);
     } else if (req.query.wallet_address) {
+      const walletCheck = validateWalletAddress(req.query.wallet_address);
+      if (!walletCheck.valid) {
+        return res.status(400).json({ success: false, error: 'Invalid wallet_address query parameter' });
+      }
       conditions.push('wallet_address = ?');
       params.push(req.query.wallet_address);
     }
@@ -109,7 +120,13 @@ router.get('/execution', requireWalletOrAdmin, (req, res) => {
       event_types: EXECUTION_EVENTS,
       stamp_id: req.query.stamp_id,
       agent_id: req.query.agent_id,
-      wallet_address: req.scopedWallet || req.query.wallet_address,
+      wallet_address: req.scopedWallet || (() => {
+        if (req.query.wallet_address) {
+          const check = validateWalletAddress(req.query.wallet_address);
+          return check.valid ? req.query.wallet_address : undefined;
+        }
+        return undefined;
+      })(),
       since: req.query.since,
       until: req.query.until,
       limit: parseInt(req.query.limit, 10) || 50,
@@ -132,7 +149,13 @@ router.get('/compliance', requireWalletOrAdmin, (req, res) => {
     const filters = {
       stamp_id: req.query.stamp_id,
       agent_id: req.query.agent_id,
-      wallet_address: req.scopedWallet || req.query.wallet_address,
+      wallet_address: req.scopedWallet || (() => {
+        if (req.query.wallet_address) {
+          const check = validateWalletAddress(req.query.wallet_address);
+          return check.valid ? req.query.wallet_address : undefined;
+        }
+        return undefined;
+      })(),
       since: req.query.since,
       until: req.query.until,
       limit: parseInt(req.query.limit, 10) || 50,
@@ -146,8 +169,8 @@ router.get('/compliance', requireWalletOrAdmin, (req, res) => {
   }
 });
 
-// GET /api/v1/audit/verify-chain — Full hash chain verification
-router.get('/verify-chain', (req, res) => {
+// GET /api/v1/audit/verify-chain — Full hash chain verification (auth required)
+router.get('/verify-chain', requireWalletOrAdmin, (req, res) => {
   try {
     const db = getDb();
     const { verifyChain } = require('../hashChain');
@@ -164,8 +187,8 @@ router.get('/verify-chain', (req, res) => {
   }
 });
 
-// GET /api/v1/audit/chain-status — Quick chain health check
-router.get('/chain-status', (req, res) => {
+// GET /api/v1/audit/chain-status — Quick chain health check (auth required)
+router.get('/chain-status', requireWalletOrAdmin, (req, res) => {
   try {
     const db = getDb();
 

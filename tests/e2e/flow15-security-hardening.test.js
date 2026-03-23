@@ -401,8 +401,6 @@ describe('Public endpoints are NOT gated by security hardening', () => {
     `/api/v1/badge/${testWallet}/json`,
     '/api/v1/registry/search',
     '/api/v1/well/wishes',
-    '/api/v1/audit/verify-chain',
-    '/api/v1/audit/chain-status',
     '/.well-known/passport-public-key',
   ];
 
@@ -413,4 +411,17 @@ describe('Public endpoints are NOT gated by security hardening', () => {
       expect(res.status).toBeLessThan(300);
     });
   }
+});
+
+// ── Audit endpoints now require auth ─────────────────────────────────────────
+describe('Audit endpoints require auth after security hardening', () => {
+  it('GET /api/v1/audit/verify-chain returns 401 without auth', async () => {
+    const res = await get('/api/v1/audit/verify-chain');
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /api/v1/audit/chain-status returns 401 without auth', async () => {
+    const res = await get('/api/v1/audit/chain-status');
+    expect(res.status).toBe(401);
+  });
 });

@@ -37,8 +37,17 @@ function shouldSkip(path) {
 }
 
 function requestTracker(getDb) {
-  // Prepare statement lazily (after DB is initialized)
+  // Prepare statement eagerly at middleware creation time (DB is already initialized)
   let insertStmt = null;
+  try {
+    const db = getDb();
+    insertStmt = db.prepare(
+      `INSERT INTO api_hits (method, path, status_code, response_time_ms, ip_hash, user_agent, wallet_address, is_bot, referrer, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+    );
+  } catch (e) {
+    // DB not ready yet — will retry lazily on first request
+  }
 
   return (req, res, next) => {
     const path = req.path;

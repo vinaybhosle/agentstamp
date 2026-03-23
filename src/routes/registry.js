@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getDb, cleanupExpired, resolvePrimaryWallet } = require('../database');
 const { generateAgentId, generateEndorsementId, generateTransactionId } = require('../utils/generateId');
-const { validateAgentRegister, validateWalletAddress, sanitize } = require('../utils/validators');
+const { validateAgentRegister, validateWalletAddress, sanitize, validateUrl } = require('../utils/validators');
 const { computeReputation } = require('../reputation');
 const { appendEvent } = require('../eventLog');
 const { requireSignature } = require('../middleware/walletSignature');
@@ -29,7 +29,12 @@ router.post('/register/free', requireSignature({ required: true, action: 'regist
       return res.status(400).json({ success: false, error: `category must be one of: ${AGENT_CATEGORIES.join(', ')}` });
     }
 
-    let capabilities = Array.isArray(req.body.capabilities) ? req.body.capabilities.slice(0, 3) : [];
+    let capabilities = Array.isArray(req.body.capabilities)
+      ? req.body.capabilities.filter(c => typeof c === 'string').slice(0, 3).map(c => sanitize(c).slice(0, 100))
+      : [];
+
+    // Validate endpoint_url — HTTPS only (same as paid registration)
+    const endpointUrl = validateUrl(sanitize(req.body.endpoint_url || ''));
 
     const db = getDb();
 
@@ -58,7 +63,7 @@ router.post('/register/free', requireSignature({ required: true, action: 'regist
     db.prepare(`
       INSERT INTO agents (id, wallet_address, name, description, category, capabilities, protocols, endpoint_url, stamp_id, registered_at, last_heartbeat, expires_at, metadata)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(agentId, walletAddress, name, description, category, JSON.stringify(capabilities), JSON.stringify([]), req.body.endpoint_url || '', null, registeredAt, registeredAt, expiresAt, JSON.stringify({ plan: 'free' }));
+    `).run(agentId, walletAddress, name, description, category, JSON.stringify(capabilities), JSON.stringify([]), endpointUrl, null, registeredAt, registeredAt, expiresAt, JSON.stringify({ plan: 'free' }));
 
     // Write cooldown under both the resolved primary AND the actual wallet
     db.prepare(`
@@ -189,7 +194,7 @@ router.put('/update/:agentId', requireSignature({ required: true, action: 'updat
     }
     if (req.body.capabilities) updates.capabilities = JSON.stringify(req.body.capabilities);
     if (req.body.protocols) updates.protocols = JSON.stringify(req.body.protocols);
-    if (req.body.endpoint_url) updates.endpoint_url = sanitize(req.body.endpoint_url);
+    if (req.body.endpoint_url) updates.endpoint_url = validateUrl(sanitize(req.body.endpoint_url));
     if (req.body.metadata) updates.metadata = JSON.stringify(req.body.metadata);
 
     // Strict allowlist to prevent SQL injection via dynamic column names
@@ -506,8 +511,8 @@ router.get('/leaderboard/live', (req, res) => {
       },
     };
 
-    // Cache the response for 60 seconds
-    _leaderboardCache = { data: responseBody, expiresAt: Date.now() + LEADERBOARD_TTL_MS, key: cacheKey };
+    // Cache the response for 60 seconds (frozen to prevent mutation)
+    _leaderboardCache = Object.freeze({ data: Object.freeze(responseBody), expiresAt: Date.now() + LEADERBOARD_TTL_MS, key: cacheKey });
 
     res.json(responseBody);
   } catch (err) {

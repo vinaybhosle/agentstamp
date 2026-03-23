@@ -5,10 +5,10 @@
  * with various filters: by outcome, execution-only, full compliance log.
  */
 
-const { makeTestWallet, get, post } = require('./helpers');
+const { makeSignedWallet, get, post } = require('./helpers');
 
 describe('Flow 3 — Stamp Event Recording + Audit Queries', () => {
-  const wallet = makeTestWallet();
+  const wallet = makeSignedWallet();
   let deniedEventId;
   let executedEventId;
 
@@ -17,15 +17,16 @@ describe('Flow 3 — Stamp Event Recording + Audit Queries', () => {
     let res;
 
     beforeAll(async () => {
+      const body = {
+        wallet_address: wallet.address,
+        action: 'access_check',
+        outcome: 'denied',
+        gate_reason: 'No valid stamp found',
+        endpoint: '/api/some-protected-resource',
+      };
       res = await post('/api/v1/stamp/event', {
-        headers: { 'x-wallet-address': wallet },
-        body: {
-          wallet_address: wallet,
-          action: 'access_check',
-          outcome: 'denied',
-          gate_reason: 'No valid stamp found',
-          endpoint: '/api/some-protected-resource',
-        },
+        headers: await wallet.signHeaders('stamp_event', body),
+        body,
       });
     });
 
@@ -52,14 +53,15 @@ describe('Flow 3 — Stamp Event Recording + Audit Queries', () => {
     let res;
 
     beforeAll(async () => {
+      const body = {
+        wallet_address: wallet.address,
+        action: 'api_call',
+        outcome: 'executed',
+        endpoint: '/api/some-resource',
+      };
       res = await post('/api/v1/stamp/event', {
-        headers: { 'x-wallet-address': wallet },
-        body: {
-          wallet_address: wallet,
-          action: 'api_call',
-          outcome: 'executed',
-          endpoint: '/api/some-resource',
-        },
+        headers: await wallet.signHeaders('stamp_event', body),
+        body,
       });
     });
 
@@ -79,7 +81,7 @@ describe('Flow 3 — Stamp Event Recording + Audit Queries', () => {
 
     beforeAll(async () => {
       eventsRes = await get('/api/v1/audit/events', {
-        headers: { 'x-wallet-address': wallet },
+        headers: await wallet.signHeaders('audit_read'),
       });
     });
 
@@ -117,7 +119,7 @@ describe('Flow 3 — Stamp Event Recording + Audit Queries', () => {
 
     beforeAll(async () => {
       filteredRes = await get('/api/v1/audit/events?outcome=denied', {
-        headers: { 'x-wallet-address': wallet },
+        headers: await wallet.signHeaders('audit_read'),
       });
     });
 
@@ -148,7 +150,7 @@ describe('Flow 3 — Stamp Event Recording + Audit Queries', () => {
 
     beforeAll(async () => {
       execRes = await get('/api/v1/audit/execution', {
-        headers: { 'x-wallet-address': wallet },
+        headers: await wallet.signHeaders('audit_read'),
       });
     });
 
@@ -171,7 +173,7 @@ describe('Flow 3 — Stamp Event Recording + Audit Queries', () => {
 
     beforeAll(async () => {
       complianceRes = await get('/api/v1/audit/compliance', {
-        headers: { 'x-wallet-address': wallet },
+        headers: await wallet.signHeaders('audit_read'),
       });
     });
 
@@ -206,7 +208,7 @@ describe('Flow 3 — Stamp Event Recording + Audit Queries', () => {
     it('returns HTTP 401', async () => {
       const res = await post('/api/v1/stamp/event', {
         body: {
-          wallet_address: wallet,
+          wallet_address: wallet.address,
           action: 'access_check',
           outcome: 'denied',
         },
@@ -218,14 +220,15 @@ describe('Flow 3 — Stamp Event Recording + Audit Queries', () => {
   // ── Step 9: Stamp event — mismatched wallets → 403 ───────────────────────
   describe('Step 9: POST /api/v1/stamp/event with mismatched wallets (403)', () => {
     it('returns HTTP 403', async () => {
-      const differentWallet = makeTestWallet();
+      const differentWallet = makeSignedWallet();
+      const body = {
+        wallet_address: wallet.address, // different from header
+        action: 'access_check',
+        outcome: 'denied',
+      };
       const res = await post('/api/v1/stamp/event', {
-        headers: { 'x-wallet-address': differentWallet },
-        body: {
-          wallet_address: wallet, // different from header
-          action: 'access_check',
-          outcome: 'denied',
-        },
+        headers: await differentWallet.signHeaders('stamp_event', body),
+        body,
       });
       expect(res.status).toBe(403);
       expect(res.body.error).toMatch(/mismatch/i);
@@ -235,13 +238,14 @@ describe('Flow 3 — Stamp Event Recording + Audit Queries', () => {
   // ── Step 10: Stamp event — invalid outcome → 400 ─────────────────────────
   describe('Step 10: POST /api/v1/stamp/event with invalid outcome (400)', () => {
     it('returns HTTP 400', async () => {
+      const body = {
+        wallet_address: wallet.address,
+        action: 'access_check',
+        outcome: 'invalid_outcome_xyz',
+      };
       const res = await post('/api/v1/stamp/event', {
-        headers: { 'x-wallet-address': wallet },
-        body: {
-          wallet_address: wallet,
-          action: 'access_check',
-          outcome: 'invalid_outcome_xyz',
-        },
+        headers: await wallet.signHeaders('stamp_event', body),
+        body,
       });
       expect(res.status).toBe(400);
     });

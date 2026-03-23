@@ -229,16 +229,21 @@ const PAID_ROUTE_PATTERNS = [
         return res.status(409).json({ success: false, error: 'Duplicate payment token — possible replay attack' });
       }
 
-      // L2 DB check (survives restarts)
+      // L2 DB check (survives restarts) — atomic check-and-insert to prevent race conditions
       try {
         const db = database.getDb();
-        const existing = db.prepare('SELECT 1 FROM payment_hashes WHERE hash = ?').get(paymentHash);
-        if (existing) {
+        const isDuplicate = db.transaction((hash) => {
+          const existing = db.prepare('SELECT 1 FROM payment_hashes WHERE hash = ?').get(hash);
+          if (existing) return true;
+          // INSERT OR IGNORE handles the rare case where another transaction inserts between SELECT and INSERT
+          db.prepare('INSERT OR IGNORE INTO payment_hashes (hash) VALUES (?)').run(hash);
+          return false;
+        })(paymentHash);
+
+        if (isDuplicate) {
           seenPayments.set(paymentHash, Date.now()); // warm L1 cache
           return res.status(409).json({ success: false, error: 'Duplicate payment token — possible replay attack' });
         }
-        // Persist new payment hash
-        db.prepare('INSERT INTO payment_hashes (hash) VALUES (?)').run(paymentHash);
       } catch (e) { /* if DB write fails, L1 cache still catches within this process lifecycle */ }
 
       seenPayments.set(paymentHash, Date.now());
@@ -252,19 +257,22 @@ const PAID_ROUTE_PATTERNS = [
   }
 
   // Free-tier endpoints that should work even when x402 is unavailable
+  // IMPORTANT: These are checked BEFORE paid routes — order matters for /stamp/mint/free vs /stamp/mint/:tier
   const FREE_ROUTE_PATTERNS = [
-    { method: 'POST', path: '/api/v1/stamp/mint/free' },
-    { method: 'POST', path: '/api/v1/registry/register/free' },
+    { method: 'POST', path: '/api/v1/stamp/mint/free', exact: true },
+    { method: 'POST', path: '/api/v1/registry/register/free', exact: true },
   ];
 
   // Fail-closed guard: if x402 didn't load, block all paid routes with 503
   // but allow free-tier endpoints through
   app.use((req, res, next) => {
     if (x402Loaded) return next();
+    // Free routes pass through even when x402 is down (exact match only)
     const isFree = FREE_ROUTE_PATTERNS.some(
       (r) => req.method === r.method && req.path === r.path
     );
     if (isFree) return next();
+    // Paid routes get blocked with 503 (prefix match unless exact flag set)
     const isPaid = PAID_ROUTE_PATTERNS.some(
       (r) => req.method === r.method && (r.exact ? req.path === r.path : req.path.startsWith(r.path))
     );

@@ -75,24 +75,33 @@ router.post('/grant/:wishId', requireSignature({ required: true, action: 'grant'
       }
     }
 
-    // Check if this wallet already granted this wish
+    // Check if this wallet (or any linked wallet) already granted this wish
+    const resolvedGranter = resolvePrimaryWallet(granterWallet);
+    const { getAllLinkedWallets } = require('../database');
+    const linkedWallets = getAllLinkedWallets(resolvedGranter);
+    const allGranterWallets = linkedWallets.all || [resolvedGranter];
+    const grantPlaceholders = allGranterWallets.map(() => '?').join(',');
     const existingGrant = db.prepare(
-      "SELECT id FROM transactions WHERE wallet_address = ? AND action = 'wish_grant' AND reference_id = ?"
-    ).get(granterWallet, req.params.wishId);
+      `SELECT id FROM transactions WHERE wallet_address IN (${grantPlaceholders}) AND action = 'wish_grant' AND reference_id = ?`
+    ).get(...allGranterWallets, req.params.wishId);
     if (existingGrant) {
       return res.status(409).json({ success: false, error: 'You have already granted this wish' });
     }
 
     const now = new Date().toISOString();
 
-    db.prepare(`
-      UPDATE wishes SET granted = 1, granted_by = ?, granted_at = ?, grant_count = grant_count + 1 WHERE id = ?
-    `).run(granterWallet, now, req.params.wishId);
+    // Atomic transaction: update wish + insert transaction together to prevent double-grant race
+    const grantTx = db.transaction(() => {
+      db.prepare(`
+        UPDATE wishes SET granted = 1, granted_by = ?, granted_at = ?, grant_count = grant_count + 1 WHERE id = ?
+      `).run(granterWallet, now, req.params.wishId);
 
-    db.prepare(`
-      INSERT INTO transactions (id, endpoint, wallet_address, amount, action, reference_id)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(generateTransactionId(), '/api/v1/well/grant', granterWallet, '$0.005', 'wish_grant', req.params.wishId);
+      db.prepare(`
+        INSERT INTO transactions (id, endpoint, wallet_address, amount, action, reference_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(generateTransactionId(), '/api/v1/well/grant', granterWallet, '$0.005', 'wish_grant', req.params.wishId);
+    });
+    grantTx();
 
     appendEvent('wish_granted', { wish_id: req.params.wishId, granted_by: granterWallet });
 

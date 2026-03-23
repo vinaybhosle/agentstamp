@@ -33,4 +33,15 @@ if (!config.walletAddress) {
   process.exit(1);
 }
 
+// Warn (not crash) if admin/analytics keys are missing — endpoints will return 503
+if (!process.env.AUTH_SECRET) {
+  console.warn('WARNING: AUTH_SECRET not set — admin endpoints will return 503');
+}
+if (!process.env.ANALYTICS_KEY) {
+  console.warn('WARNING: ANALYTICS_KEY not set — analytics dashboard will return 503');
+}
+if (!process.env.ADMIN_KEY) {
+  console.warn('WARNING: ADMIN_KEY not set — audit admin access will be unavailable');
+}
+
 module.exports = config;

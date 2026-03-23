@@ -12,7 +12,7 @@
  * headers — they must succeed (or fail cleanly) without any auth.
  */
 
-const { get, post } = require('./helpers');
+const { get, post, makeSignedWallet } = require('./helpers');
 
 // A deterministic non-existent wallet to use across tests
 const UNKNOWN_WALLET = '0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF';
@@ -424,15 +424,18 @@ describe('GET /api/v1/wallet/links/:wallet — wallet links public read', () => 
   });
 });
 
-// ── GET /api/v1/audit/verify-chain — public ──────────────────────────────────
-describe('GET /api/v1/audit/verify-chain — public hash chain verification', () => {
+// ── GET /api/v1/audit/verify-chain — requires auth ───────────────────────────
+describe('GET /api/v1/audit/verify-chain — hash chain verification (requires auth)', () => {
+  const auditWallet = makeSignedWallet();
   let res;
 
   beforeAll(async () => {
-    res = await get('/api/v1/audit/verify-chain');
+    res = await get('/api/v1/audit/verify-chain', {
+      headers: await auditWallet.signHeaders('audit_read'),
+    });
   });
 
-  it('returns HTTP 200 without auth', () => {
+  it('returns HTTP 200 with wallet auth', () => {
     expect(res.status).toBe(200);
   });
 
@@ -441,15 +444,18 @@ describe('GET /api/v1/audit/verify-chain — public hash chain verification', ()
   });
 });
 
-// ── GET /api/v1/audit/chain-status — public ──────────────────────────────────
-describe('GET /api/v1/audit/chain-status — public chain status', () => {
+// ── GET /api/v1/audit/chain-status — requires auth ───────────────────────────
+describe('GET /api/v1/audit/chain-status — chain status (requires auth)', () => {
+  const auditWallet = makeSignedWallet();
   let res;
 
   beforeAll(async () => {
-    res = await get('/api/v1/audit/chain-status');
+    res = await get('/api/v1/audit/chain-status', {
+      headers: await auditWallet.signHeaders('audit_read'),
+    });
   });
 
-  it('returns HTTP 200 without auth', () => {
+  it('returns HTTP 200 with wallet auth', () => {
     expect(res.status).toBe(200);
   });
 

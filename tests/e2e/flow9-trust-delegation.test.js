@@ -14,17 +14,17 @@
  * Skipped gracefully if the payment facilitator is down (503 on mint).
  */
 
-const { makeTestWallet, get, post } = require('./helpers');
+const { makeSignedWallet, get, post } = require('./helpers');
 
 describe('Flow 9 — Trust Delegation', () => {
-  const wallet = makeTestWallet();
-  const targetWallet = makeTestWallet();
+  const wallet = makeSignedWallet();
+  const targetWallet = makeSignedWallet();
   let mintUnavailable = false;
 
   // Give the low-score wallet a stamp so trust check returns real data
   beforeAll(async () => {
     const mintRes = await post('/api/v1/stamp/mint/free', {
-      headers: { 'x-wallet-address': wallet },
+      headers: await wallet.signHeaders('mint'),
     });
     if (mintRes.status === 503) {
       console.warn('Flow 9: Payment facilitator unavailable (503) — skipping stamp-dependent tests');
@@ -41,9 +41,9 @@ describe('Flow 9 — Trust Delegation', () => {
     beforeAll(async () => {
       // No x-wallet-signature / x-wallet-timestamp headers — should be rejected
       res = await post('/api/v1/trust/delegate', {
-        headers: { 'x-wallet-address': wallet },
+        headers: { 'x-wallet-address': wallet.address },
         body: {
-          delegatee_wallet: targetWallet,
+          delegatee_wallet: targetWallet.address,
           weight: 1.0,
         },
       });
@@ -67,7 +67,7 @@ describe('Flow 9 — Trust Delegation', () => {
     it('returns 401 when x-wallet-address is missing entirely', async () => {
       const res = await post('/api/v1/trust/delegate', {
         body: {
-          delegatee_wallet: targetWallet,
+          delegatee_wallet: targetWallet.address,
           weight: 1.0,
         },
       });
@@ -82,7 +82,7 @@ describe('Flow 9 — Trust Delegation', () => {
     let delegationsRes;
 
     beforeAll(async () => {
-      delegationsRes = await get(`/api/v1/trust/delegations/${wallet}`);
+      delegationsRes = await get(`/api/v1/trust/delegations/${wallet.address}`);
     });
 
     it('returns HTTP 200', () => {
@@ -132,7 +132,7 @@ describe('Flow 9 — Trust Delegation', () => {
     let trustRes;
 
     beforeAll(async () => {
-      trustRes = await get(`/api/v1/trust/check/${wallet}`);
+      trustRes = await get(`/api/v1/trust/check/${wallet.address}`);
     });
 
     it('returns HTTP 200', () => {
@@ -168,9 +168,9 @@ describe('Flow 9 — Trust Delegation', () => {
   describe('Step 6: Self-delegation attempt requires signature → 401', () => {
     it('returns 401 (signature required) when no signature headers', async () => {
       const res = await post('/api/v1/trust/delegate', {
-        headers: { 'x-wallet-address': wallet },
+        headers: { 'x-wallet-address': wallet.address },
         body: {
-          delegatee_wallet: wallet, // self
+          delegatee_wallet: wallet.address, // self
           weight: 1.0,
         },
       });
@@ -182,7 +182,7 @@ describe('Flow 9 — Trust Delegation', () => {
   // ── Step 7: Delegations endpoint works for target wallet too ──────────────
   describe('Step 7: GET /api/v1/trust/delegations/:targetWallet', () => {
     it('returns 200 with empty arrays for a brand-new wallet', async () => {
-      const res = await get(`/api/v1/trust/delegations/${targetWallet}`);
+      const res = await get(`/api/v1/trust/delegations/${targetWallet.address}`);
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(Array.isArray(res.body.incoming)).toBe(true);

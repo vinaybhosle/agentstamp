@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDb } = require('../database');
+const { validateWalletAddress } = require('../utils/validators');
 
 const TIER_COLORS = {
   free: { bg: '#6b6b80', text: '#ffffff' },
@@ -74,6 +75,11 @@ function makeBadgeSVG(verified, tier, agentName, reputation) {
 // GET /api/v1/badge/:walletAddress — SVG badge
 router.get('/:walletAddress', (req, res) => {
   try {
+    const walletCheck = validateWalletAddress(req.params.walletAddress);
+    if (!walletCheck.valid) {
+      return res.status(400).send('Invalid wallet address');
+    }
+
     const db = getDb();
     const stamp = db.prepare(
       "SELECT * FROM stamps WHERE wallet_address = ? AND revoked = 0 AND expires_at > datetime('now') ORDER BY CASE tier WHEN 'gold' THEN 1 WHEN 'silver' THEN 2 WHEN 'bronze' THEN 3 WHEN 'free' THEN 4 ELSE 5 END LIMIT 1"
@@ -111,6 +117,11 @@ router.get('/:walletAddress', (req, res) => {
 // GET /api/v1/badge/:walletAddress/json — Badge data as JSON
 router.get('/:walletAddress/json', (req, res) => {
   try {
+    const walletCheck = validateWalletAddress(req.params.walletAddress);
+    if (!walletCheck.valid) {
+      return res.status(400).json({ success: false, error: 'Invalid wallet address' });
+    }
+
     const db = getDb();
     const stamp = db.prepare(
       "SELECT * FROM stamps WHERE wallet_address = ? AND revoked = 0 AND expires_at > datetime('now') ORDER BY CASE tier WHEN 'gold' THEN 1 WHEN 'silver' THEN 2 WHEN 'bronze' THEN 3 WHEN 'free' THEN 4 ELSE 5 END LIMIT 1"

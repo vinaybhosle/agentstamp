@@ -1,24 +1,5 @@
 const crypto = require('crypto');
-const dns = require('dns');
-const { promisify } = require('util');
-
-const dnsResolve = promisify(dns.resolve4);
-
-/**
- * Check if an IP address is private/internal (SSRF protection).
- */
-function isPrivateIP(ip) {
-  const parts = ip.split('.').map(Number);
-  if (parts.length !== 4) return true; // non-IPv4 → block
-  return (
-    parts[0] === 10 ||
-    parts[0] === 127 ||
-    parts[0] === 0 ||
-    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
-    (parts[0] === 192 && parts[1] === 168) ||
-    (parts[0] === 169 && parts[1] === 254)
-  );
-}
+const { isPrivateIp, resolveAndCheckHostname } = require('./utils/network');
 
 /**
  * Dispatch webhook events to registered URLs.
@@ -54,13 +35,9 @@ async function dispatch(walletAddress, event, payload) {
         }
       } catch { continue; }
 
-      // DNS rebinding protection: resolve hostname and verify IPs are public
-      try {
-        const ips = await dnsResolve(parsed.hostname);
-        if (!ips || ips.length === 0 || ips.some(isPrivateIP)) continue;
-      } catch {
-        continue; // DNS resolution failed — skip this hook
-      }
+      // DNS rebinding protection: resolve hostname and verify IPs are public (dual-stack IPv4+IPv6)
+      const dnsCheck = await resolveAndCheckHostname(parsed.hostname);
+      if (!dnsCheck.safe) continue;
 
       const body = JSON.stringify({
         event,

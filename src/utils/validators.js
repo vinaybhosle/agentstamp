@@ -5,9 +5,13 @@ const STAMP_TIERS = ['bronze', 'silver', 'gold'];
 function sanitize(str) {
   if (typeof str !== 'string') return '';
   return str
+    .replace(/\0/g, '')               // Strip null bytes
     .replace(/<[^>]*>/g, '')           // Strip HTML tags
-    .replace(/&[a-z]+;/gi, '')         // Strip HTML entities
+    .replace(/&[a-z]+;/gi, '')         // Strip named HTML entities (&amp; etc.)
+    .replace(/&#x?[0-9a-f]+;?/gi, '') // Strip numeric HTML entities (&#60; &#x3C;)
     .replace(/javascript\s*:/gi, '')   // Strip javascript: URIs
+    .replace(/vbscript\s*:/gi, '')     // Strip vbscript: URIs
+    .replace(/data\s*:/gi, '')         // Strip data: URIs
     .replace(/on\w+\s*=/gi, '')        // Strip event handlers
     .trim();
 }
@@ -28,11 +32,18 @@ function validateWalletAddress(address) {
 }
 
 function validateStampMint(body) {
+  // Defense-in-depth: validate wallet_address format if provided in body
+  if (body.wallet_address) {
+    const walletCheck = validateWalletAddress(body.wallet_address);
+    if (!walletCheck.valid) {
+      return { valid: false, error: walletCheck.error };
+    }
+  }
   const agentName = sanitize(body.agent_name || '');
   if (agentName.length > 100) {
     return { valid: false, error: 'agent_name must be 100 characters or less' };
   }
-  return { valid: true, error: null, data: { agent_name: agentName, metadata: body.metadata || {} } };
+  return { valid: true, error: null, data: { agent_name: agentName, metadata: validateMetadata(body.metadata) } };
 }
 
 function validateUrl(url) {
@@ -48,15 +59,22 @@ function validateUrl(url) {
 
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
-function validateMetadata(meta) {
+function validateMetadata(meta, _depth = 0) {
   if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return {};
-  const str = JSON.stringify(meta);
-  if (str.length > 5120) return {}; // 5KB max
-  // Strip prototype pollution keys — return a clean copy (immutable pattern)
+  if (_depth === 0) {
+    const str = JSON.stringify(meta);
+    if (str.length > 5120) return {}; // 5KB max
+  }
+  if (_depth > 5) return {}; // Prevent deep nesting abuse
+  // Strip prototype pollution keys recursively — return a clean copy (immutable pattern)
   const clean = {};
   for (const key of Object.keys(meta)) {
-    if (!FORBIDDEN_KEYS.has(key)) {
-      clean[key] = meta[key];
+    if (FORBIDDEN_KEYS.has(key)) continue;
+    const val = meta[key];
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      clean[key] = validateMetadata(val, _depth + 1);
+    } else {
+      clean[key] = val;
     }
   }
   return clean;
@@ -205,6 +223,7 @@ module.exports = {
   STAMP_EVENT_OUTCOMES,
   TOMBSTONE_OUTCOMES,
   sanitize,
+  validateUrl,
   validateWalletAddress,
   validateStampMint,
   validateAgentRegister,
