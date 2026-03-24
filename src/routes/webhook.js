@@ -4,13 +4,12 @@ const router = express.Router();
 const { getDb, resolvePrimaryWallet } = require('../database');
 const { generateWebhookId } = require('../utils/generateId');
 const { requireSignature } = require('../middleware/walletSignature');
-const dns = require('dns');
-const { isPrivateIp } = require('../utils/network');
+const { resolveAndCheckHostname } = require('../utils/network');
 
 const VALID_EVENTS = [
   'stamp_minted', 'stamp_expiring', 'stamp_tombstoned',
   'endorsement_received', 'wish_granted', 'wish_matched',
-  'reputation_changed', 'agent_registered',
+  'reputation_changed', 'agent_registered', 'agent_updated', 'agent_expired',
   'wallet_linked', 'wallet_unlinked',
   'erc8004_linked', 'delegation_received',
 ];
@@ -53,29 +52,10 @@ router.post('/register', requireSignature({ required: true, action: 'webhook_reg
       return res.status(400).json({ success: false, error: 'Webhook URLs must not use IPv6 addresses directly' });
     }
 
-    // Hostname string checks (fast path)
-    if (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '0.0.0.0' ||
-      hostname === '::1' ||
-      hostname.endsWith('.local') ||
-      hostname.startsWith('10.') ||
-      hostname.startsWith('192.168.') ||
-      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
-      hostname.startsWith('169.254.')
-    ) {
-      return res.status(400).json({ success: false, error: 'Webhook URLs must not point to private or internal addresses' });
-    }
-
-    // DNS resolution check — catch DNS rebinding at registration time
-    try {
-      const { address } = await dns.promises.lookup(hostname, { family: 0 });
-      if (isPrivateIp(address)) {
-        return res.status(400).json({ success: false, error: 'Webhook URL resolves to a private IP address' });
-      }
-    } catch (dnsErr) {
-      return res.status(400).json({ success: false, error: 'Webhook URL hostname could not be resolved' });
+    // SSRF protection: dual-stack DNS resolution with private IP check
+    const dnsCheck = await resolveAndCheckHostname(hostname);
+    if (!dnsCheck.safe) {
+      return res.status(400).json({ success: false, error: dnsCheck.error || 'Webhook URL resolves to a private or internal address' });
     }
 
     if (!Array.isArray(events) || events.length === 0) {

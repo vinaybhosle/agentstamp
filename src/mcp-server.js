@@ -13,7 +13,7 @@ const { generateInsights } = require('./insights');
 function createMcpServer() {
   const server = new McpServer({
     name: 'AgentStamp',
-    version: '2.2.0',
+    version: '2.3.0',
   });
 
   // --- Tool: search_agents ---
@@ -23,7 +23,7 @@ function createMcpServer() {
     {
       query: z.string().optional().describe('Search term to match against agent names, descriptions, and capabilities'),
       category: z.string().optional().describe('Filter by category: data, trading, research, creative, infrastructure, other'),
-      limit: z.number().optional().default(10).describe('Max results (default 10, max 100)'),
+      limit: z.number().int().min(1).max(100).optional().default(10).describe('Max results (1-100)'),
     },
     async ({ query, category, limit }) => {
       const agents = queries.searchAgents({ q: query, category, limit: limit || 10 });
@@ -113,10 +113,10 @@ function createMcpServer() {
     {
       category: z.string().optional().describe('Filter by category'),
       sort: z.enum(['endorsements', 'newest', 'name', 'reputation']).optional().default('endorsements').describe('Sort order'),
-      limit: z.number().optional().default(10).describe('Max results'),
+      limit: z.number().int().min(1).max(100).optional().default(10).describe('Max results (1-100)'),
     },
     async ({ category, sort, limit }) => {
-      const agents = queries.browseAgents({ category, sort, limit: limit || 10 });
+      const { agents, total } = queries.browseAgents({ category, sort, limit: limit || 10 });
       const results = agents.map(a => ({
         id: a.id,
         name: a.name,
@@ -127,7 +127,7 @@ function createMcpServer() {
       }));
 
       return {
-        content: [{ type: 'text', text: JSON.stringify({ agents: results, count: results.length }, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify({ agents: results, count: results.length, total }, null, 2) }],
       };
     }
   );
@@ -152,7 +152,7 @@ function createMcpServer() {
     {
       category: z.string().optional().describe('Filter by wish category'),
       sort: z.enum(['newest', 'most_granted', 'oldest']).optional().default('newest'),
-      limit: z.number().optional().default(10),
+      limit: z.number().int().min(1).max(100).optional().default(10),
     },
     async ({ category, sort, limit }) => {
       const wishes = queries.browseWishes({ category, sort, limit: limit || 10 });
@@ -484,6 +484,188 @@ function createMcpServer() {
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       } catch (err) {
         return { content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'ERC-8004 trust check failed' }, null, 2) }] };
+      }
+    }
+  );
+
+  // --- Tool: compliance_report ---
+  server.tool(
+    'compliance_report',
+    'Get EU AI Act compliance report for an agent. Returns risk level, transparency declaration, audit summary, and trust status. Free.',
+    {
+      agent_id: z.string().describe('Agent ID (e.g., agt_E-PFtTAIQlfVleNm)'),
+    },
+    async ({ agent_id }) => {
+      try {
+        const { getDb } = require('./database');
+        const { TRANSPARENCY_ALLOWED_KEYS } = require('./constants');
+        const db = getDb();
+
+        const agent = db.prepare(
+          "SELECT id, name, wallet_address, category, status, registered_at, last_heartbeat, human_sponsor, ai_act_risk_level, transparency_declaration, wallet_verified FROM agents WHERE id = ?"
+        ).get(agent_id);
+
+        if (!agent) {
+          return { content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'Agent not found' }, null, 2) }] };
+        }
+
+        const reputation = computeReputation(agent.id);
+
+        const stamp = db.prepare(
+          "SELECT tier, expires_at FROM stamps WHERE wallet_address = ? AND revoked = 0 AND expires_at > datetime('now') ORDER BY CASE tier WHEN 'gold' THEN 1 WHEN 'silver' THEN 2 WHEN 'bronze' THEN 3 ELSE 4 END LIMIT 1"
+        ).get(agent.wallet_address);
+
+        let transparencyFields = {};
+        if (agent.transparency_declaration) {
+          try {
+            const raw = JSON.parse(agent.transparency_declaration);
+            for (const key of TRANSPARENCY_ALLOWED_KEYS) {
+              if (raw[key] !== undefined && typeof raw[key] === 'string') {
+                transparencyFields[key] = raw[key].slice(0, 500);
+              }
+            }
+          } catch (e) { /* invalid JSON */ }
+        }
+
+        const result = {
+          success: true,
+          agent_id: agent.id,
+          agent_name: agent.name,
+          ai_act: {
+            risk_level: agent.ai_act_risk_level || 'not_declared',
+            transparency: {
+              is_ai_agent: true,
+              human_sponsor: agent.human_sponsor || null,
+              category: agent.category,
+              ...transparencyFields,
+            },
+          },
+          trust_status: {
+            score: reputation?.score || 0,
+            tier: reputation?.tier_label || 'new',
+            active_stamp: stamp ? { tier: stamp.tier, expires_at: stamp.expires_at } : null,
+          },
+          verification: {
+            wallet_verified: !!agent.wallet_verified,
+            stamp_verified: !!stamp,
+            compliance_url: `https://agentstamp.org/api/v1/compliance/report/${agent.id}`,
+          },
+        };
+
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      } catch (err) {
+        return { content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'Compliance report failed' }, null, 2) }] };
+      }
+    }
+  );
+
+  // --- Tool: get_verifiable_credential ---
+  server.tool(
+    'get_verifiable_credential',
+    'Get a W3C Verifiable Credential for an agent. Returns the agent passport in W3C VC Data Model 2.0 format, interoperable with any VC verifier. Free.',
+    {
+      wallet_address: z.string().describe('Agent wallet address (0x... or Solana base58)'),
+    },
+    async ({ wallet_address }) => {
+      try {
+        const passport = generatePassport(wallet_address);
+        if (!passport) {
+          return { content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'No active agent found for this wallet' }, null, 2) }] };
+        }
+
+        const agent = passport.agent;
+        const reputation = passport.reputation;
+        const stamp = passport.stamp;
+        const accountability = passport.accountability;
+        const now = new Date().toISOString();
+
+        const vc = {
+          '@context': ['https://www.w3.org/ns/credentials/v2', 'https://agentstamp.org/ns/credentials/v1'],
+          type: ['VerifiableCredential', 'AgentTrustCredential'],
+          issuer: { id: 'did:web:agentstamp.org', name: 'AgentStamp' },
+          validFrom: now,
+          validUntil: agent.expires_at,
+          credentialSubject: {
+            id: `did:pkh:eip155:8453:${agent.wallet_address}`,
+            type: 'AIAgent',
+            name: agent.name,
+            trustScore: reputation?.score || 0,
+            trustTier: reputation?.label || 'new',
+            humanSponsor: accountability?.human_sponsor || null,
+            stamp: stamp ? { tier: stamp.tier, valid: stamp.valid } : null,
+          },
+          credentialStatus: {
+            id: `https://agentstamp.org/api/v1/trust/check/${agent.wallet_address}`,
+            type: 'AgentStampTrustCheck',
+          },
+        };
+
+        return { content: [{ type: 'text', text: JSON.stringify(vc, null, 2) }] };
+      } catch (err) {
+        return { content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'VC generation failed' }, null, 2) }] };
+      }
+    }
+  );
+
+  // --- Tool: dns_discovery ---
+  server.tool(
+    'dns_discovery',
+    'Check if a domain has an AgentStamp DNS TXT record for agent discovery. Verifies _agentstamp.domain.com TXT record and cross-checks with the registry. Free.',
+    {
+      domain: z.string().describe('Domain to check (e.g., shippingrates.org)'),
+    },
+    async ({ domain }) => {
+      try {
+        const dns = require('dns');
+        const cleanDomain = domain.toLowerCase().replace(/[^a-z0-9.\-]/g, '');
+        if (!cleanDomain || cleanDomain.length > 253) {
+          return { content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'Invalid domain' }, null, 2) }] };
+        }
+        const txtHost = `_agentstamp.${cleanDomain}`;
+
+        const records = await new Promise((resolve, reject) => {
+          dns.resolveTxt(txtHost, (err, recs) => {
+            if (err) reject(err);
+            else resolve(recs);
+          });
+        }).catch(() => null);
+
+        if (!records) {
+          return { content: [{ type: 'text', text: JSON.stringify({
+            found: false, domain: cleanDomain, txt_host: txtHost,
+            message: 'No _agentstamp TXT record found',
+            setup: `Add TXT record: ${txtHost} "v=as1; wallet=YOUR_WALLET; stamp=TIER"`,
+          }, null, 2) }] };
+        }
+
+        const flat = records.map(r => r.join('')).filter(r => r.startsWith('v=as1'));
+        if (flat.length === 0) {
+          return { content: [{ type: 'text', text: JSON.stringify({ found: true, valid: false, message: 'TXT exists but not AgentStamp format' }, null, 2) }] };
+        }
+
+        const fields = Object.fromEntries(
+          flat[0].split(';').map(s => s.trim().split('=', 2)).filter(([k]) => k)
+        );
+
+        const { getDb } = require('./database');
+        const db = getDb();
+        // Validate wallet from untrusted DNS source
+        const { validateWalletAddress } = require('./utils/validators');
+        const walletCheck = validateWalletAddress(fields.wallet || '');
+        if (!walletCheck.valid) {
+          return { content: [{ type: 'text', text: JSON.stringify({ found: true, valid: false, error: 'TXT record contains invalid wallet address' }, null, 2) }] };
+        }
+
+        const agent = db.prepare("SELECT id, name FROM agents WHERE wallet_address = ? AND status = 'active' LIMIT 1").get(fields.wallet);
+
+        return { content: [{ type: 'text', text: JSON.stringify({
+          found: true, valid: !!agent, domain: cleanDomain,
+          wallet: fields.wallet, claimed_stamp: fields.stamp,
+          agent: agent ? { id: agent.id, name: agent.name } : null,
+          trust_check_url: `https://agentstamp.org/api/v1/trust/check/${fields.wallet}`,
+        }, null, 2) }] };
+      } catch (err) {
+        return { content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'DNS lookup failed' }, null, 2) }] };
       }
     }
   );

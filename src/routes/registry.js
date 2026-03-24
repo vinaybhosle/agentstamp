@@ -6,9 +6,11 @@ const { validateAgentRegister, validateWalletAddress, sanitize, validateUrl } = 
 const { computeReputation } = require('../reputation');
 const { appendEvent } = require('../eventLog');
 const { requireSignature } = require('../middleware/walletSignature');
+const { freeTierLimiter } = require('../middleware/rateLimit');
+const { AI_ACT_RISK_LEVELS, AGENT_CATEGORIES, TRANSPARENCY_MAX_BYTES, HUMAN_SPONSOR_MAX_LEN } = require('../constants');
 
 // POST /api/v1/registry/register/free — Free 30-day agent registration
-router.post('/register/free', requireSignature({ required: true, action: 'register' }), (req, res) => {
+router.post('/register/free', freeTierLimiter, requireSignature({ required: true, action: 'register' }), (req, res) => {
   try {
     const walletAddress = req.headers['x-wallet-address'] || req.body.wallet_address;
     if (!walletAddress || walletAddress === '0x0000000000000000000000000000000000000000') {
@@ -23,7 +25,6 @@ router.post('/register/free', requireSignature({ required: true, action: 'regist
     if (!description) return res.status(400).json({ success: false, error: 'description is required' });
     if (description.length > 1000) return res.status(400).json({ success: false, error: 'description must be 1000 characters or less' });
 
-    const AGENT_CATEGORIES = ['data', 'trading', 'research', 'creative', 'infrastructure', 'other'];
     const category = req.body.category || 'other';
     if (!AGENT_CATEGORIES.includes(category)) {
       return res.status(400).json({ success: false, error: `category must be one of: ${AGENT_CATEGORIES.join(', ')}` });
@@ -35,6 +36,9 @@ router.post('/register/free', requireSignature({ required: true, action: 'regist
 
     // Validate endpoint_url — HTTPS only (same as paid registration)
     const endpointUrl = validateUrl(sanitize(req.body.endpoint_url || ''));
+
+    // Optional human sponsor (email or URL for accountability)
+    const humanSponsor = sanitize(req.body.human_sponsor || '').slice(0, HUMAN_SPONSOR_MAX_LEN) || null;
 
     const db = getDb();
 
@@ -61,9 +65,9 @@ router.post('/register/free', requireSignature({ required: true, action: 'regist
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
     db.prepare(`
-      INSERT INTO agents (id, wallet_address, name, description, category, capabilities, protocols, endpoint_url, stamp_id, registered_at, last_heartbeat, expires_at, metadata)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(agentId, walletAddress, name, description, category, JSON.stringify(capabilities), JSON.stringify([]), endpointUrl, null, registeredAt, registeredAt, expiresAt, JSON.stringify({ plan: 'free' }));
+      INSERT INTO agents (id, wallet_address, name, description, category, capabilities, protocols, endpoint_url, stamp_id, registered_at, last_heartbeat, expires_at, metadata, human_sponsor)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(agentId, walletAddress, name, description, category, JSON.stringify(capabilities), JSON.stringify([]), endpointUrl, null, registeredAt, registeredAt, expiresAt, JSON.stringify({ plan: 'free' }), humanSponsor);
 
     // Write cooldown under both the resolved primary AND the actual wallet
     db.prepare(`
@@ -119,6 +123,18 @@ router.post('/register', requireSignature({ required: true, action: 'register' }
     const walletAddress = req.headers['x-wallet-address'] || req.body.wallet_address;
     const { name, description, category, capabilities, protocols, endpoint_url, stamp_id, metadata } = validation.data;
 
+    // Optional fields for accountability and compliance
+    const humanSponsor = sanitize(req.body.human_sponsor || '').slice(0, HUMAN_SPONSOR_MAX_LEN) || null;
+    const aiActRiskLevel = AI_ACT_RISK_LEVELS.includes(req.body.ai_act_risk_level) ? req.body.ai_act_risk_level : null;
+    let transparencyDeclaration = null;
+    if (req.body.transparency_declaration && typeof req.body.transparency_declaration === 'object') {
+      const tdStr = JSON.stringify(req.body.transparency_declaration);
+      if (tdStr.length > TRANSPARENCY_MAX_BYTES) {
+        return res.status(400).json({ success: false, error: 'transparency_declaration too large (max 2000 chars)' });
+      }
+      transparencyDeclaration = tdStr;
+    }
+
     if (stamp_id) {
       const db = getDb();
       const stamp = db.prepare('SELECT id FROM stamps WHERE id = ? AND revoked = 0').get(stamp_id);
@@ -133,14 +149,14 @@ router.post('/register', requireSignature({ required: true, action: 'register' }
 
     const db = getDb();
     db.prepare(`
-      INSERT INTO agents (id, wallet_address, name, description, category, capabilities, protocols, endpoint_url, stamp_id, registered_at, last_heartbeat, expires_at, metadata)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(agentId, walletAddress, name, description, category, JSON.stringify(capabilities), JSON.stringify(protocols), endpoint_url, stamp_id, registeredAt, registeredAt, expiresAt, JSON.stringify(metadata));
+      INSERT INTO agents (id, wallet_address, name, description, category, capabilities, protocols, endpoint_url, stamp_id, registered_at, last_heartbeat, expires_at, metadata, human_sponsor, ai_act_risk_level, transparency_declaration)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(agentId, walletAddress, name, description, category, JSON.stringify(capabilities), JSON.stringify(protocols), endpoint_url, stamp_id, registeredAt, registeredAt, expiresAt, JSON.stringify(metadata), humanSponsor, aiActRiskLevel, transparencyDeclaration);
 
     db.prepare(`
       INSERT INTO transactions (id, endpoint, wallet_address, amount, action, reference_id)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(generateTransactionId(), '/api/v1/registry/register', walletAddress, '$0.01', 'agent_register', agentId);
+    `).run(generateTransactionId(), '/api/v1/registry/register', walletAddress, '0.01', 'agent_register', agentId);
 
     appendEvent('agent_registered', { agent_id: agentId, wallet_address: walletAddress, name });
 
@@ -186,7 +202,6 @@ router.put('/update/:agentId', requireSignature({ required: true, action: 'updat
     if (req.body.name) updates.name = sanitize(req.body.name).slice(0, 100);
     if (req.body.description) updates.description = sanitize(req.body.description).slice(0, 1000);
     if (req.body.category) {
-      const AGENT_CATEGORIES = ['data', 'trading', 'research', 'creative', 'infrastructure', 'other'];
       if (!AGENT_CATEGORIES.includes(req.body.category)) {
         return res.status(400).json({ success: false, error: `category must be one of: ${AGENT_CATEGORIES.join(', ')}` });
       }
@@ -196,9 +211,22 @@ router.put('/update/:agentId', requireSignature({ required: true, action: 'updat
     if (req.body.protocols) updates.protocols = JSON.stringify(req.body.protocols);
     if (req.body.endpoint_url) updates.endpoint_url = validateUrl(sanitize(req.body.endpoint_url));
     if (req.body.metadata) updates.metadata = JSON.stringify(req.body.metadata);
+    if (req.body.human_sponsor !== undefined) updates.human_sponsor = sanitize(req.body.human_sponsor || '').slice(0, HUMAN_SPONSOR_MAX_LEN) || null;
+    if (req.body.ai_act_risk_level) {
+      if (AI_ACT_RISK_LEVELS.includes(req.body.ai_act_risk_level)) {
+        updates.ai_act_risk_level = req.body.ai_act_risk_level;
+      }
+    }
+    if (req.body.transparency_declaration && typeof req.body.transparency_declaration === 'object') {
+      const tdStr = JSON.stringify(req.body.transparency_declaration);
+      if (tdStr.length > TRANSPARENCY_MAX_BYTES) {
+        return res.status(400).json({ success: false, error: 'transparency_declaration too large (max 2000 chars)' });
+      }
+      updates.transparency_declaration = tdStr;
+    }
 
     // Strict allowlist to prevent SQL injection via dynamic column names
-    const ALLOWED_UPDATE_COLS = new Set(['name', 'description', 'category', 'capabilities', 'protocols', 'endpoint_url', 'metadata']);
+    const ALLOWED_UPDATE_COLS = new Set(['name', 'description', 'category', 'capabilities', 'protocols', 'endpoint_url', 'metadata', 'human_sponsor', 'ai_act_risk_level', 'transparency_declaration']);
     const safeKeys = Object.keys(updates).filter(k => ALLOWED_UPDATE_COLS.has(k));
     const setClauses = safeKeys.map(k => `${k} = ?`).join(', ');
     if (setClauses) {
@@ -209,7 +237,9 @@ router.put('/update/:agentId', requireSignature({ required: true, action: 'updat
     db.prepare(`
       INSERT INTO transactions (id, endpoint, wallet_address, amount, action, reference_id)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(generateTransactionId(), '/api/v1/registry/update', walletAddress || agent.wallet_address, '$0.005', 'agent_update', req.params.agentId);
+    `).run(generateTransactionId(), '/api/v1/registry/update', walletAddress || agent.wallet_address, '0.005', 'agent_update', req.params.agentId);
+
+    try { require('../webhookDispatcher').dispatch(agent.wallet_address, 'agent_updated', { agent_id: req.params.agentId, fields_updated: safeKeys }); } catch (e) { /* best-effort */ }
 
     res.json({ success: true, message: 'Agent updated' });
   } catch (err) {
@@ -249,7 +279,7 @@ router.post('/endorse/:agentId', requireSignature({ required: true, action: 'end
     db.prepare(`
       INSERT INTO transactions (id, endpoint, wallet_address, amount, action, reference_id)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(generateTransactionId(), '/api/v1/registry/endorse', endorserWallet, '$0.005', 'agent_endorse', req.params.agentId);
+    `).run(generateTransactionId(), '/api/v1/registry/endorse', endorserWallet, '0.005', 'agent_endorse', req.params.agentId);
 
     appendEvent('endorsement', { agent_id: req.params.agentId, endorser_wallet: endorserWallet });
 
@@ -340,7 +370,13 @@ router.get('/browse', (req, res) => {
       metadata: JSON.parse(a.metadata || '{}'),
     }));
 
-    res.json({ success: true, agents: parsed, limit, offset });
+    // Total count for accurate pagination/display
+    let countSql = "SELECT COUNT(*) as total FROM agents WHERE status = 'active'";
+    const countParams = [];
+    if (category) { countSql += ' AND category = ?'; countParams.push(category); }
+    const total = db.prepare(countSql).get(...countParams)?.total || 0;
+
+    res.json({ success: true, agents: parsed, total, limit, offset });
   } catch (err) {
     console.error('Registry browse error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });

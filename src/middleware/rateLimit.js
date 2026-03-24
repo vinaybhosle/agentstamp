@@ -30,6 +30,18 @@ const readLimiter = rateLimit({
   message: { success: false, error: `Too many read requests. Max ${readMax} per minute.` },
 });
 
+// Strict limiter for free-tier abuse prevention (mint/free, register/free)
+// Max 3 per IP per hour — prevents scripted bulk minting
+const freeTierMax = parseInt(process.env.RATE_LIMIT_FREE_TIER_MAX, 10) || 3;
+const freeTierWindowMs = parseInt(process.env.RATE_LIMIT_FREE_TIER_WINDOW_MS, 10) || 3_600_000;
+const freeTierLimiter = rateLimit({
+  windowMs: freeTierWindowMs,
+  max: freeTierMax,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: `Too many free-tier requests. Max ${freeTierMax} per hour.` },
+});
+
 // Analytics limiter — admin-only, still bounded
 const analyticsMax = parseInt(process.env.RATE_LIMIT_ANALYTICS_MAX, 10) || 20;
 const analyticsLimiter = rateLimit({
@@ -40,4 +52,4 @@ const analyticsLimiter = rateLimit({
   message: { success: false, error: `Too many analytics requests. Max ${analyticsMax} per minute.` },
 });
 
-module.exports = { globalLimiter, mutationLimiter, readLimiter, analyticsLimiter };
+module.exports = { globalLimiter, mutationLimiter, readLimiter, analyticsLimiter, freeTierLimiter };

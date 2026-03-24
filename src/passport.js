@@ -78,6 +78,13 @@ function generatePassport(walletAddress) {
       expires_at: agent.expires_at,
     },
 
+    // Accountability
+    accountability: {
+      human_sponsor: agent.human_sponsor || null,
+      ai_act_risk_level: agent.ai_act_risk_level || null,
+      transparency_declaration: agent.transparency_declaration ? (() => { try { return JSON.parse(agent.transparency_declaration); } catch { return null; } })() : null,
+    },
+
     // Stamp verification
     stamp: stamp ? {
       id: stamp.id,

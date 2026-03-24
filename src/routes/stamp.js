@@ -3,16 +3,17 @@ const router = express.Router();
 const { getDb, cleanupExpired, resolvePrimaryWallet } = require('../database');
 const { signCertificate, verifyCertificate, getPublicKey } = require('../crypto');
 const { generateStampId, generateTransactionId, generateStampEventId } = require('../utils/generateId');
-const { validateStampMint, validateStampEvent, validateTombstone, validateBlindRegister } = require('../utils/validators');
+const { validateStampMint, validateStampEvent, validateTombstone, validateBlindRegister, sanitize } = require('../utils/validators');
 const { appendEvent } = require('../eventLog');
 const { getAllLinkedWallets } = require('../database');
 const crypto = require('crypto');
 const { requireSignature } = require('../middleware/walletSignature');
+const { freeTierLimiter } = require('../middleware/rateLimit');
 
 const TIER_CONFIG = {
-  bronze: { price: '$0.001', validityHours: 24 },
-  silver: { price: '$0.005', validityDays: 7 },
-  gold: { price: '$0.01', validityDays: 30 },
+  bronze: { price: '0.001', validityHours: 24 },
+  silver: { price: '0.005', validityDays: 7 },
+  gold: { price: '0.01', validityDays: 30 },
 };
 
 function getExpiresAt(tier) {
@@ -28,11 +29,12 @@ function getExpiresAt(tier) {
 }
 
 // POST /api/v1/stamp/mint/free — Free 7-day stamp (no x402 payment required)
-router.post('/mint/free', requireSignature({ required: true, action: 'mint' }), (req, res) => {
+router.post('/mint/free', freeTierLimiter, requireSignature({ required: true, action: 'mint' }), (req, res) => {
   try {
-    const walletAddress = req.headers['x-wallet-address'] || req.body.wallet_address;
+    // Use only the verified header wallet — never fall back to body (prevents auth bypass)
+    const walletAddress = req.headers['x-wallet-address'];
     if (!walletAddress || walletAddress === '0x0000000000000000000000000000000000000000') {
-      return res.status(400).json({ success: false, error: 'wallet_address is required for free stamps' });
+      return res.status(401).json({ success: false, error: 'x-wallet-address header required' });
     }
 
     const db = getDb();
@@ -140,7 +142,11 @@ router.post('/mint/:tier', requireSignature({ required: true, action: 'mint' }),
       return res.status(400).json({ success: false, error: validation.error });
     }
 
-    const walletAddress = req.headers['x-wallet-address'] || req.body.wallet_address;
+    // Use only the verified header wallet — never fall back to body (prevents auth bypass)
+    const walletAddress = req.headers['x-wallet-address'];
+    if (!walletAddress) {
+      return res.status(401).json({ success: false, error: 'x-wallet-address header required' });
+    }
     const stampId = generateStampId();
     const issuedAt = new Date().toISOString();
     const expiresAt = getExpiresAt(tier);
@@ -385,6 +391,71 @@ router.post('/:stampId/tombstone', requireSignature({ required: true, action: 't
     });
   } catch (err) {
     console.error('Stamp tombstone error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// POST /api/v1/stamp/revoke/:stampId — Revoke a stamp (key compromise, rotation)
+router.post('/revoke/:stampId', requireSignature({ required: true, action: 'revoke' }), (req, res) => {
+  try {
+    const db = getDb();
+    const stamp = db.prepare('SELECT * FROM stamps WHERE id = ?').get(req.params.stampId);
+    if (!stamp) {
+      return res.status(404).json({ success: false, error: 'Stamp not found' });
+    }
+
+    // Ownership check
+    const callerWallet = req.headers['x-wallet-address'] || req.body.wallet_address;
+    if (!callerWallet) {
+      return res.status(401).json({ success: false, error: 'Wallet address required' });
+    }
+    const resolvedCaller = resolvePrimaryWallet(callerWallet);
+    const resolvedOwner = resolvePrimaryWallet(stamp.wallet_address);
+    if (resolvedCaller !== resolvedOwner) {
+      return res.status(403).json({ success: false, error: 'Not authorized to revoke this stamp' });
+    }
+
+    if (stamp.revoked) {
+      return res.status(409).json({ success: false, error: 'Stamp is already revoked' });
+    }
+
+    const reason = sanitize(req.body.reason || 'key_rotation').slice(0, 200);
+    const VALID_REASONS = ['key_compromise', 'key_rotation', 'decommissioned', 'owner_request'];
+    const normalizedReason = VALID_REASONS.includes(reason) ? reason : 'owner_request';
+
+    db.prepare(
+      "UPDATE stamps SET revoked = 1, outcome = ?, tombstoned_at = datetime('now') WHERE id = ?"
+    ).run(`revoked:${normalizedReason}`, req.params.stampId);
+
+    appendEvent('stamp_revoked', {
+      stamp_id: req.params.stampId,
+      wallet_address: stamp.wallet_address,
+      reason: normalizedReason,
+    });
+
+    try {
+      require('../webhookDispatcher').dispatch(stamp.wallet_address, 'stamp_tombstoned', {
+        stamp_id: stamp.id,
+        outcome: `revoked:${normalizedReason}`,
+        reason: normalizedReason,
+      });
+    } catch (e) { /* best-effort */ }
+
+    res.json({
+      success: true,
+      stamp_id: stamp.id,
+      revoked: true,
+      reason: normalizedReason,
+      message: normalizedReason === 'key_rotation'
+        ? 'Stamp revoked. Mint a new stamp to complete key rotation.'
+        : 'Stamp permanently revoked.',
+      next_steps: normalizedReason === 'key_rotation' ? {
+        mint_free: 'POST /api/v1/stamp/mint/free',
+        mint_paid: 'POST /api/v1/stamp/mint/{tier}',
+      } : null,
+    });
+  } catch (err) {
+    console.error('Stamp revoke error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });

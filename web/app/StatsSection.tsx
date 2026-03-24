@@ -7,7 +7,7 @@ interface StatsSectionProps {
   totalStamps: number;
   totalAgents: number;
   totalWishes: number;
-  stampsByTier: { bronze: number; silver: number; gold: number };
+  stampsByTier: Record<string, number>;
 }
 
 function useAnimatedCounter(target: number, duration = 1500) {
@@ -82,7 +82,7 @@ export function StatsSection({
   totalWishes,
   stampsByTier,
 }: StatsSectionProps) {
-  const grants = stampsByTier.bronze + stampsByTier.silver + stampsByTier.gold;
+  const grants = Object.values(stampsByTier).reduce((sum, count) => sum + (count || 0), 0);
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

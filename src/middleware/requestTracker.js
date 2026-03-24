@@ -16,6 +16,8 @@ const BOT_PATTERNS = [
   /perl/i, /php/i, /libhttp/i, /scrapy/i, /headless/i,
   /claude/i, /openai/i, /gpt/i, /anthropic/i, /gemini/i, /copilot/i,
   /mcp/i, /agent/i, /llm/i, /ai[- ]?assistant/i,
+  /^node$/i, /^deno/i, /^bun/i, // bare runtime user-agents = scripts
+  /googleother/i, /googlebot/i, /bingbot/i, /yandexbot/i, /baiduspider/i, // search engine crawlers
 ];
 
 function isBot(ua) {

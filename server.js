@@ -24,6 +24,8 @@ const adminRoutes = require('./src/routes/admin');
 const walletRoutes = require('./src/routes/wallet');
 const auditRoutes = require('./src/routes/audit');
 const bridgeRoutes = require('./src/routes/bridge');
+const complianceRoutes = require('./src/routes/compliance');
+const discoveryRoutes = require('./src/routes/discovery');
 const { mountMcpOnExpress } = require('./src/mcp-server');
 
 // Initialize core systems
@@ -327,16 +329,18 @@ const PAID_ROUTE_PATTERNS = [
   app.use(healthRoutes);
   app.use('/api/v1/stamp', mutationLimiter, stampRoutes);
   app.use('/api/v1/registry', readLimiter, registryRoutes);
-  app.use('/api/v1/well', wellRoutes);
+  app.use('/api/v1/well', mutationLimiter, wellRoutes);
   app.use('/api/v1/passport', readLimiter, passportRoutes);
   app.use('/api/v1/analytics', analyticsLimiter, analyticsRoutes);
   app.use('/api/v1/badge', readLimiter, badgeRoutes);
   app.use('/api/v1/webhooks', mutationLimiter, webhookRoutes);
   app.use('/api/v1/trust', readLimiter, trustRoutes);
   app.use('/api/v1/wallet', mutationLimiter, walletRoutes);
-  app.use('/api/v1/bridge', bridgeRoutes);
+  app.use('/api/v1/bridge', readLimiter, bridgeRoutes);
   app.use('/api/v1/admin', analyticsLimiter, adminRoutes);
   app.use('/api/v1/audit', readLimiter, auditRoutes);
+  app.use('/api/v1/compliance', readLimiter, complianceRoutes);
+  app.use('/api/v1/discovery', readLimiter, discoveryRoutes);
 
   // MCP server (Streamable HTTP transport)
   mountMcpOnExpress(app, '/mcp');

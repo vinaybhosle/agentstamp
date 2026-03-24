@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AgentStamp API",
-    "version": "2.2.0",
+    "version": "2.3.0",
     "description": "AgentStamp provides cryptographic identity certificates (stamps), a searchable public registry, reputation scores, cross-protocol passports, verification badges, and a Wishing Well marketplace for AI agents. Free tier available. Paid endpoints use x402 micropayments (USDC on Base and Solana).",
     "contact": {
       "name": "AgentStamp",
@@ -26,9 +26,31 @@
     { "name": "Passport", "description": "Cross-protocol signed agent passports and A2A cards" },
     { "name": "Badge", "description": "SVG and JSON verification badges" },
     { "name": "Webhooks", "description": "Webhook registration and management" },
+    { "name": "Compliance", "description": "EU AI Act compliance reports and transparency" },
     { "name": "Health", "description": "Service health check" }
   ],
   "paths": {
+    "/api/v1/compliance/report/{agentId}": {
+      "get": {
+        "operationId": "getComplianceReport",
+        "summary": "Get EU AI Act compliance report",
+        "description": "Returns structured compliance metadata including AI Act risk level, transparency declaration, audit summary, and trust status for a registered agent.",
+        "tags": ["Compliance"],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Agent ID (e.g., agt_E-PFtTAIQlfVleNm)"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Compliance report" },
+          "404": { "description": "Agent not found" }
+        }
+      }
+    },
     "/health": {
       "get": {
         "operationId": "healthCheck",

@@ -191,6 +191,75 @@ See `.env.example` for all configuration options.
 | 4005 | AgentStamp Backend (Express) |
 | 4000 | AgentStamp Web (Next.js) |
 
+## Trust Delegation
+
+Agents with a trust score of 50+ can vouch for other agents via delegation:
+
+- **Min delegator score:** 50
+- **Max outgoing delegations:** 5 per agent
+- **Expiry:** 30 days (auto-revoked)
+- **Bonus formula:** `delegator_score * weight * 0.15`, capped at 20 total points from all delegations
+
+```
+POST /api/v1/trust/delegate
+  { delegatee_wallet, weight (0.1-2.0), reason }
+
+DELETE /api/v1/trust/delegate/:delegateeWallet
+
+GET /api/v1/trust/delegations/:wallet
+```
+
+Example: An agent with score 80 delegates with weight 1.0 = +12 points for the delegatee.
+
+## Human Sponsor & EU AI Act Compliance
+
+**Human Sponsor** — Optional `human_sponsor` field (email or URL) on agent registration linking the agent to its human operator. Appears in passport, MCP tools, and compliance reports.
+
+**AI Act Fields** — Optional `ai_act_risk_level` (minimal/limited/high) and `transparency_declaration` (structured JSON: purpose, model_provider, training_data, human_oversight, data_retention).
+
+**Compliance Report:**
+
+```
+GET /api/v1/compliance/report/:agentId
+```
+
+Returns structured metadata for EU AI Act Article 52 transparency, including risk level, human sponsor, audit chain integrity, and trust status. Also available as MCP tool `compliance_report`.
+
+## Key Rotation & Revocation
+
+If a private key is compromised or needs rotation:
+
+```
+POST /api/v1/stamp/revoke/:stampId
+  { reason: "key_rotation" | "key_compromise" | "decommissioned" | "owner_request" }
+```
+
+After revoking, mint a new stamp with the new wallet to complete the rotation. The old stamp is permanently revoked and the event is recorded in the audit trail.
+
+## W3C Verifiable Credentials
+
+Export any agent's passport as a W3C VC Data Model 2.0 credential:
+
+```
+GET /api/v1/passport/:walletAddress/vc
+```
+
+Returns a standard `VerifiableCredential` with `AgentTrustCredential` type, interoperable with any W3C VC verifier. Issuer: `did:web:agentstamp.org`. Also available as MCP tool `get_verifiable_credential`.
+
+## DNS-Based Agent Discovery
+
+Make your agent discoverable via DNS by adding a TXT record:
+
+```
+_agentstamp.yourdomain.com TXT "v=as1; wallet=0x...; stamp=gold"
+```
+
+Verify with: `GET /api/v1/discovery/dns/yourdomain.com`
+
+Generate your TXT record: `GET /api/v1/discovery/txt-record/:walletAddress`
+
+Also available as MCP tool `dns_discovery`.
+
 ## License
 
 MIT

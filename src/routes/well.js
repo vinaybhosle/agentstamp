@@ -36,7 +36,7 @@ router.post('/wish', requireSignature({ required: true, action: 'wish' }), (req,
     db.prepare(`
       INSERT INTO transactions (id, endpoint, wallet_address, amount, action, reference_id)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(generateTransactionId(), '/api/v1/well/wish', walletAddress, '$0.001', 'wish_create', wishId);
+    `).run(generateTransactionId(), '/api/v1/well/wish', walletAddress, '0.001', 'wish_create', wishId);
 
     appendEvent('wish_created', { wish_id: wishId, wallet_address: walletAddress, category });
 
@@ -99,7 +99,7 @@ router.post('/grant/:wishId', requireSignature({ required: true, action: 'grant'
       db.prepare(`
         INSERT INTO transactions (id, endpoint, wallet_address, amount, action, reference_id)
         VALUES (?, ?, ?, ?, ?, ?)
-      `).run(generateTransactionId(), '/api/v1/well/grant', granterWallet, '$0.005', 'wish_grant', req.params.wishId);
+      `).run(generateTransactionId(), '/api/v1/well/grant', granterWallet, '0.005', 'wish_grant', req.params.wishId);
     });
     grantTx();
 

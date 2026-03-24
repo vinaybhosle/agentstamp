@@ -281,6 +281,21 @@ function initialize() {
     // Column already exists — safe to ignore
   }
 
+  // Add human_sponsor column for accountability (who operates this agent)
+  try {
+    db.exec('ALTER TABLE agents ADD COLUMN human_sponsor TEXT DEFAULT NULL');
+  } catch (e) {
+    // Column already exists — safe to ignore
+  }
+
+  // Add AI Act compliance columns
+  try {
+    db.exec("ALTER TABLE agents ADD COLUMN ai_act_risk_level TEXT DEFAULT NULL");
+  } catch (e) { /* exists */ }
+  try {
+    db.exec("ALTER TABLE agents ADD COLUMN transparency_declaration TEXT DEFAULT NULL");
+  } catch (e) { /* exists */ }
+
   // Add nonce column to blind_tokens for audit trail (migration-safe)
   try {
     db.exec("ALTER TABLE blind_tokens ADD COLUMN nonce TEXT NOT NULL DEFAULT ''");
@@ -376,6 +391,7 @@ function cleanupExpired() {
   }
   for (const a of expiringAgents) {
     appendEvent('agent_expired', { agent_id: a.id, wallet_address: a.wallet_address });
+    try { require('./webhookDispatcher').dispatch(a.wallet_address, 'agent_expired', { agent_id: a.id }); } catch (e) { /* best-effort */ }
   }
 
   // Reputation monitoring is handled by heartbeat/endorsement handlers — not here.

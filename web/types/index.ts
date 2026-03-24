@@ -86,11 +86,7 @@ export interface StampVerification {
 export interface StampStats {
   total_issued: number;
   active: number;
-  by_tier: {
-    bronze: number;
-    silver: number;
-    gold: number;
-  };
+  by_tier: Record<string, number>;
   today: number;
   this_week: number;
 }

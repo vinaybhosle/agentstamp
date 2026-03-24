@@ -1,7 +1,7 @@
 {
   "name": "AgentStamp",
   "description": "Stamp your agent into existence. Identity certificates, public registry, and wishing well for AI agents — payable via USDC micropayments on Base.",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "protocol": "x402",
   "payment": {
     "network": "base",

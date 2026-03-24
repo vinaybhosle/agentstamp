@@ -64,4 +64,79 @@ router.get('/:walletAddress/a2a', (req, res) => {
   }
 });
 
+// GET /api/v1/passport/:walletAddress/vc — W3C Verifiable Credential format
+router.get('/:walletAddress/vc', (req, res) => {
+  try {
+    const walletCheck = validateWalletAddress(req.params.walletAddress);
+    if (!walletCheck.valid) {
+      return res.status(400).json({ success: false, error: 'Invalid wallet address format' });
+    }
+
+    const passport = generatePassport(req.params.walletAddress);
+    if (!passport) {
+      return res.status(404).json({
+        success: false,
+        error: 'No active agent found for this wallet address.',
+      });
+    }
+
+    // Transform AgentStamp passport into W3C Verifiable Credential format
+    // https://www.w3.org/TR/vc-data-model-2.0/
+    const now = new Date().toISOString();
+    const agent = passport.agent;
+    const reputation = passport.reputation;
+    const stamp = passport.stamp;
+    const accountability = passport.accountability;
+
+    const vc = {
+      '@context': [
+        'https://www.w3.org/ns/credentials/v2',
+        'https://agentstamp.org/ns/credentials/v1',
+      ],
+      type: ['VerifiableCredential', 'AgentTrustCredential'],
+      issuer: {
+        id: 'did:web:agentstamp.org',
+        name: 'AgentStamp',
+      },
+      validFrom: now,
+      validUntil: agent.expires_at,
+      credentialSubject: {
+        id: `did:pkh:eip155:8453:${agent.wallet_address}`,
+        type: 'AIAgent',
+        name: agent.name,
+        description: agent.description,
+        category: agent.category,
+        trustScore: reputation?.score || 0,
+        trustTier: reputation?.label || 'new',
+        humanSponsor: accountability?.human_sponsor || null,
+        stamp: stamp ? {
+          id: stamp.id,
+          tier: stamp.tier,
+          valid: stamp.valid,
+          issuedAt: stamp.issued_at,
+          expiresAt: stamp.expires_at,
+        } : null,
+        capabilities: agent.capabilities,
+        protocols: agent.protocols,
+        registeredAt: agent.registered_at,
+      },
+      credentialStatus: {
+        id: `https://agentstamp.org/api/v1/trust/check/${agent.wallet_address}`,
+        type: 'AgentStampTrustCheck',
+      },
+      proof: passport.signature ? {
+        type: 'Ed25519Signature2020',
+        created: now,
+        verificationMethod: 'https://agentstamp.org/.well-known/passport-public-key',
+        proofValue: passport.signature,
+      } : undefined,
+    };
+
+    res.json(vc);
+  } catch (err) {
+    console.error('VC credential error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

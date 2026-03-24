@@ -18,6 +18,19 @@ async function getStats(): Promise<StampStats | null> {
   }
 }
 
+async function getAgentCount(): Promise<number> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/registry/browse?limit=1`, {
+      next: { revalidate: 30 },
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return data.total ?? data.agents?.length ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 async function getRecentAgents(): Promise<Agent[]> {
   try {
     const res = await fetch(`${API_BASE}/api/v1/registry/browse?sort=newest&limit=6`, {
@@ -252,8 +265,9 @@ function getTimeAgo(timestamp: string): string {
 }
 
 export default async function HomePage() {
-  const [stats, recentAgents, recentWishes, pulse] = await Promise.all([
+  const [stats, agentCount, recentAgents, recentWishes, pulse] = await Promise.all([
     getStats(),
+    getAgentCount(),
     getRecentAgents(),
     getRecentWishes(),
     getPulse(),
@@ -280,7 +294,7 @@ export default async function HomePage() {
           </p>
           <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-[#00f0ff]/20 bg-[#00f0ff]/5 px-4 py-1.5 text-xs text-[#00f0ff] font-medium">
             <Sparkles className="size-3" />
-            v2.0.0 — Security hardened, ERC-8004 bridge, Python SDK
+            v2.3.0 — Security hardened, ERC-8004 bridge, Python SDK
           </div>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
@@ -362,14 +376,14 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* What's New in v2.0.0 */}
+      {/* What's New in v2.3.0 */}
       <section className="py-20 border-t border-[#1e1e2a]">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <div className="inline-flex items-center gap-2 rounded-full border border-[#00ff88]/20 bg-[#00ff88]/5 px-4 py-1.5 text-xs text-[#00ff88] font-medium mb-4">
               NEW
             </div>
-            <h2 className="text-3xl font-bold text-[#e8e8ed]">What&apos;s New in v2.0.0</h2>
+            <h2 className="text-3xl font-bold text-[#e8e8ed]">What&apos;s New in v2.3.0</h2>
             <p className="mt-3 text-[#6b6b80]">
               Security hardened. ERC-8004 compatible. Multi-chain ready.
             </p>
@@ -397,7 +411,7 @@ export default async function HomePage() {
               {
                 icon: Link2,
                 title: "Python + TypeScript SDKs",
-                desc: "agentstamp-verify v1.3.0 on npm, agentstamp v1.2.0 on PyPI. Express, Hono, and Python integrations.",
+                desc: "agentstamp-verify v1.4.0 on npm, agentstamp v1.3.0 on PyPI. Express, Hono, and Python integrations.",
                 color: "#ffaa00",
               },
             ].map((item) => (
@@ -428,9 +442,9 @@ export default async function HomePage() {
           </div>
           <StatsSection
             totalStamps={stats?.total_issued ?? 0}
-            totalAgents={stats?.active ?? 0}
+            totalAgents={agentCount}
             totalWishes={0}
-            stampsByTier={stats?.by_tier ?? { bronze: 0, silver: 0, gold: 0 }}
+            stampsByTier={stats?.by_tier ?? {}}
           />
         </div>
       </section>

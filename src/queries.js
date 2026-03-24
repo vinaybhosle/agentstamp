@@ -13,6 +13,7 @@ function parseAgent(agent) {
     capabilities: JSON.parse(agent.capabilities || '[]'),
     protocols: JSON.parse(agent.protocols || '[]'),
     metadata: JSON.parse(agent.metadata || '{}'),
+    transparency_declaration: agent.transparency_declaration ? JSON.parse(agent.transparency_declaration) : null,
   };
 }
 
@@ -60,14 +61,24 @@ function browseAgents({ category, sort = 'endorsements', limit = 20, offset = 0 
 
   const agents = db.prepare(sql).all(...params).map(parseAgent);
 
+  // Count total active agents (for pagination / accurate display)
+  let countSql = "SELECT COUNT(*) as total FROM agents WHERE status = 'active'";
+  const countParams = [];
+  if (category) {
+    countSql += ' AND category = ?';
+    countParams.push(category);
+  }
+  const total = db.prepare(countSql).get(...countParams)?.total || 0;
+
   // If sort by reputation, compute and re-sort
   if (sort === 'reputation') {
-    return agents
+    const sorted = agents
       .map(a => ({ ...a, reputation: computeReputation(a.id) }))
       .sort((a, b) => (b.reputation?.score || 0) - (a.reputation?.score || 0));
+    return { agents: sorted, total };
   }
 
-  return agents;
+  return { agents, total };
 }
 
 function getAgentById(agentId) {
