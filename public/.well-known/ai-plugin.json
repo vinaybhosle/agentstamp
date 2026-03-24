@@ -1,0 +1,17 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "AgentStamp",
+  "name_for_model": "agentstamp",
+  "description_for_human": "Trust verification and identity certification for AI agents. Check trust scores, verify stamps, browse the agent registry, and get compliance reports.",
+  "description_for_model": "AgentStamp provides trust intelligence for AI agents. Use it to verify an agent's trust score (0-100), check their identity stamp (gold/silver/bronze), browse the public agent registry, get EU AI Act compliance reports, export W3C Verifiable Credentials, and discover agents via DNS. All endpoints are free for reads. Payments use x402 USDC on Base and Solana.",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://agentstamp.org/.well-known/openapi.json"
+  },
+  "logo_url": "https://agentstamp.org/og-image.png",
+  "contact_email": "vinay@agentstamp.org",
+  "legal_info_url": "https://agentstamp.org/about"
+}

@@ -541,29 +541,49 @@ Facilitator: ${config.facilitatorUrl}
   // robots.txt
   app.get('/robots.txt', (req, res) => {
     res.type('text/plain').send(
-      'User-agent: *\nAllow: /\n\n' +
+      'User-agent: *\n' +
+      'Allow: /\n' +
+      'Disallow: /admin\n' +
+      'Disallow: /api/v1/admin\n\n' +
       '# AI Agent Discovery\n' +
       '# MCP Server: https://agentstamp.org/mcp\n' +
       '# OpenAPI: https://agentstamp.org/.well-known/openapi.json\n' +
       '# Agent Card: https://agentstamp.org/.well-known/agent-card.json\n' +
-      '# LLMs.txt: https://agentstamp.org/llms.txt\n\n' +
+      '# AI Plugin: https://agentstamp.org/.well-known/ai-plugin.json\n' +
+      '# Agents Discovery: https://agentstamp.org/.well-known/agents.json\n' +
+      '# LLMs.txt: https://agentstamp.org/llms.txt\n' +
+      '# LLMs Full: https://agentstamp.org/llms-full.txt\n' +
+      '# AI Permissions: https://agentstamp.org/ai.txt\n\n' +
       'Sitemap: https://agentstamp.org/sitemap.xml\n'
     );
   });
 
   // Sitemap
   app.get('/sitemap.xml', (req, res) => {
+    // Dynamic sitemap with agent pages
+    const db = database.getDb();
+    let agentUrls = '';
+    try {
+      const agents = db.prepare("SELECT id, registered_at FROM agents WHERE status = 'active' LIMIT 100").all();
+      for (const a of agents) {
+        agentUrls += `  <url><loc>https://agentstamp.org/registry/${a.id}</loc><lastmod>${a.registered_at || new Date().toISOString()}</lastmod><priority>0.6</priority><changefreq>weekly</changefreq></url>\n`;
+      }
+    } catch (e) { /* best-effort */ }
+
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://agentstamp.org/</loc><priority>1.0</priority><changefreq>daily</changefreq></url>
-  <url><loc>https://agentstamp.org/register</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
-  <url><loc>https://agentstamp.org/registry</loc><priority>0.8</priority><changefreq>daily</changefreq></url>
-  <url><loc>https://agentstamp.org/docs</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://agentstamp.org/docs</loc><priority>0.9</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://agentstamp.org/registry</loc><priority>0.9</priority><changefreq>daily</changefreq></url>
+  <url><loc>https://agentstamp.org/register</loc><priority>0.8</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://agentstamp.org/leaderboard</loc><priority>0.8</priority><changefreq>daily</changefreq></url>
   <url><loc>https://agentstamp.org/well</loc><priority>0.7</priority><changefreq>daily</changefreq></url>
+  <url><loc>https://agentstamp.org/about</loc><priority>0.7</priority><changefreq>monthly</changefreq></url>
   <url><loc>https://agentstamp.org/insights</loc><priority>0.7</priority><changefreq>daily</changefreq></url>
   <url><loc>https://agentstamp.org/verify</loc><priority>0.6</priority><changefreq>monthly</changefreq></url>
-  <url><loc>https://agentstamp.org/about</loc><priority>0.6</priority><changefreq>monthly</changefreq></url>
-</urlset>`);
+  <url><loc>https://agentstamp.org/.well-known/openapi.json</loc><priority>0.5</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://agentstamp.org/llms.txt</loc><priority>0.4</priority><changefreq>weekly</changefreq></url>
+${agentUrls}</urlset>`);
   });
 
   // Global error handler

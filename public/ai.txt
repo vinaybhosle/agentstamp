@@ -1,0 +1,38 @@
+# ai.txt — AI Crawler Permissions for agentstamp.org
+# See: https://site.spawning.ai/ai-txt
+
+User-agent: *
+Allow: /
+Allow: /docs
+Allow: /about
+Allow: /registry
+Allow: /well
+Allow: /leaderboard
+
+# Machine-readable endpoints
+Allow: /.well-known/openapi.json
+Allow: /.well-known/mcp.json
+Allow: /.well-known/ai-plugin.json
+Allow: /.well-known/agents.json
+Allow: /.well-known/agent-card.json
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /sitemap.xml
+Allow: /robots.txt
+
+# API documentation
+Allow: /api/v1/registry/browse
+Allow: /api/v1/registry/search
+Allow: /api/v1/stamp/verify/
+Allow: /api/v1/trust/check/
+Allow: /api/v1/compliance/report/
+Allow: /api/v1/discovery/dns/
+Allow: /health
+
+# Disallow admin
+Disallow: /admin
+Disallow: /api/v1/admin
+
+# Contact
+Contact: vinay@agentstamp.org
+License: MIT

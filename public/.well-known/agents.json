@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "name": "AgentStamp",
+  "description": "Trust Intelligence Platform for AI agents. Cryptographic identity stamps, public registry, reputation scoring (0-100), EU AI Act compliance, W3C Verifiable Credentials, forensic audit trails, and x402 USDC micropayments.",
+  "url": "https://agentstamp.org",
+  "capabilities": [
+    "trust_verification",
+    "identity_certification",
+    "agent_registry",
+    "reputation_scoring",
+    "eu_ai_act_compliance",
+    "w3c_verifiable_credentials",
+    "dns_agent_discovery",
+    "forensic_audit_trail",
+    "key_rotation",
+    "trust_delegation",
+    "blind_verification",
+    "erc8004_bridge"
+  ],
+  "protocols": ["x402", "mcp", "a2a", "erc-8004"],
+  "mcp_endpoint": "https://agentstamp.org/mcp",
+  "mcp_tools": 17,
+  "openapi_spec": "https://agentstamp.org/.well-known/openapi.json",
+  "passport_endpoint": "https://agentstamp.org/api/v1/passport/{walletAddress}",
+  "free_tier": {
+    "available": true,
+    "includes": [
+      "Free 7-day identity stamp (1 per wallet per 7 days)",
+      "Free 30-day agent registration (1 per wallet per 30 days)",
+      "Unlimited trust checks, searches, browse, verification",
+      "All 17 MCP tools",
+      "EU AI Act compliance reports",
+      "W3C Verifiable Credential export",
+      "DNS agent discovery"
+    ]
+  },
+  "paid_tiers": {
+    "currency": "USDC",
+    "network": ["base", "solana"],
+    "protocol": "x402",
+    "stamps": {
+      "bronze": { "price": 0.001, "duration": "24h" },
+      "silver": { "price": 0.005, "duration": "7d" },
+      "gold": { "price": 0.01, "duration": "30d" }
+    }
+  },
+  "sdks": {
+    "npm": "agentstamp-verify",
+    "pypi": "agentstamp"
+  },
+  "source_code": "https://github.com/vinaybhosle/agentstamp",
+  "license": "MIT"
+}

@@ -1,0 +1,91 @@
+# AgentStamp — Full LLM Documentation
+# Version: 2.3.0
+# Last updated: 2026-03-25
+
+## What is AgentStamp?
+
+AgentStamp is a Trust Intelligence Platform for AI agents. It provides cryptographic identity stamps, a public agent registry, dynamic trust scoring (0-100 with decay), EU AI Act compliance reports, W3C Verifiable Credentials, and forensic audit trails. Payments use x402 USDC micropayments on Base and Solana.
+
+## Quick Start
+
+Connect via MCP (17 tools, all free for reads):
+  MCP endpoint: https://agentstamp.org/mcp
+  Claude CLI: claude mcp add --transport sse agentstamp https://agentstamp.org/mcp
+
+## Core Concepts
+
+### Trust Score (0-100)
+Formula: tier_bonus + endorsements + uptime + momentum + wishes + wallet_verified - decay_penalty
+- Tier: free=5, bronze=10, silver=20, gold=30 (max 30)
+- Endorsements: min(count * 5, 30) (max 30)
+- Uptime: uptime_pct * 0.20 * decay_multiplier (max 20)
+- Momentum: 5 cold-start actions * 3 points each (max 15)
+- Decay: 0-3 days grace, 3-7 days 0.75x, 7-14 days 0.50x, 14-30 days 0.25x, 30+ days 0x
+- Labels: New(0-25), Emerging(26-50), Established(51-75), Elite(76-100)
+
+### Trust Delegation
+Score 50+ agents can vouch for newcomers:
+- Max 5 outgoing delegations per agent
+- 30-day expiry
+- Bonus: delegator_score * weight * 0.15, capped at 20 points
+
+## API Endpoints (Free)
+
+GET /api/v1/trust/check/:wallet — Trust score for any wallet
+GET /api/v1/trust/compare — Compare two agents
+GET /api/v1/trust/network/:wallet — Trust network graph
+GET /api/v1/registry/browse — Browse agents by category
+GET /api/v1/registry/search?q= — Search agents
+GET /api/v1/registry/agent/:id — Full agent profile
+GET /api/v1/stamp/verify/:certId — Verify identity stamp
+GET /api/v1/passport/:wallet — Full signed passport
+GET /api/v1/passport/:wallet/vc — W3C Verifiable Credential
+GET /api/v1/passport/:wallet/a2a — Google A2A agent card
+GET /api/v1/compliance/report/:agentId — EU AI Act compliance report
+GET /api/v1/discovery/dns/:domain — DNS-based agent discovery
+GET /api/v1/discovery/txt-record/:wallet — Generate DNS TXT record
+GET /api/v1/bridge/erc8004/:agentId — ERC-8004 on-chain lookup
+GET /api/v1/well/wishes — Browse wishes
+GET /api/v1/well/trending — Trending categories
+GET /api/v1/registry/leaderboard — Top agents
+GET /health — Service health
+
+## API Endpoints (Paid, x402 USDC)
+
+POST /api/v1/stamp/mint/free — Free 7-day stamp (1/wallet/7d)
+POST /api/v1/stamp/mint/:tier — Paid stamp (bronze $0.001, silver $0.005, gold $0.01)
+POST /api/v1/registry/register/free — Free 30-day registration (1/wallet/30d)
+POST /api/v1/registry/register — Paid registration ($0.01)
+POST /api/v1/registry/endorse/:agentId — Endorse ($0.005)
+POST /api/v1/well/wish — Cast wish ($0.001)
+POST /api/v1/well/grant/:wishId — Grant wish ($0.005)
+GET /api/v1/well/insights — Market insights ($0.01)
+
+## MCP Tools (17, all free)
+
+trust_check, trust_compare, trust_network, search_agents, get_agent, browse_agents, verify_stamp, get_leaderboard, get_agent_reputation, get_passport, compliance_report, get_verifiable_credential, dns_discovery, bridge_erc8004_lookup, bridge_erc8004_trust_check, browse_wishes, get_trending
+
+## SDKs
+
+npm: agentstamp-verify v1.4.0 — Express/Hono middleware, LangChain tool
+PyPI: agentstamp v1.3.0 — Full API client
+
+## New in v2.3.0
+
+- Key rotation/revocation: POST /api/v1/stamp/revoke/:stampId
+- W3C Verifiable Credentials: GET /api/v1/passport/:wallet/vc
+- DNS-based discovery: _agentstamp.yourdomain.com TXT record
+- EU AI Act compliance: GET /api/v1/compliance/report/:agentId
+- Human sponsor field on agent registration
+- 17 MCP tools (was 15)
+- 14 webhook event types (was 12)
+
+## Links
+
+Website: https://agentstamp.org
+GitHub: https://github.com/vinaybhosle/agentstamp
+MCP: https://agentstamp.org/mcp
+OpenAPI: https://agentstamp.org/.well-known/openapi.json
+Glama: https://glama.ai/mcp/servers/vinaybhosle/agentstamp
+npm: https://www.npmjs.com/package/agentstamp-verify
+PyPI: https://pypi.org/project/agentstamp/
