@@ -39,7 +39,7 @@ npm run seed           # 5 agents, 5 stamps, 10 wishes, 5 endorsements
 - **Signing:** Ed25519 keypair (auto-generated)
 - **Frontend:** Next.js 16 + Tailwind CSS + shadcn/ui
 - **SDK:** `agentstamp-verify` on npm (Express + Hono middleware)
-- **MCP:** Live MCP server at `/mcp` (Streamable HTTP transport, 14 tools)
+- **MCP:** Live MCP server at `/mcp` (Streamable HTTP transport, 17 tools)
 - **HTTPS:** Cloudflare Tunnel
 - **Process Manager:** PM2
 
