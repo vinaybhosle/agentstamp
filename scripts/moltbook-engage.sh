@@ -203,8 +203,8 @@ $CONFIG
 
 ## Steps:
 1. GET /api/v1/agents/me for each account — check karma
-   - If karma < 15: SKIP posting, comment on 3 posts instead. Send Telegram: 'Karma too low (X), commenting instead'
-   - If karma >= 15: Proceed
+   - If karma < 5: SKIP posting, comment on 3 posts instead. Send Telegram: 'Karma too low (X), commenting instead'
+   - If karma >= 5: Proceed
 2. GET /api/v1/feed — scan what's trending for inspiration
 3. Write ONE post per account:
    - AgentStamp: post to 'builds' submolt. Topics: agent trust, reputation systems, identity, cryptographic proofs
@@ -278,7 +278,7 @@ $CONFIG
 Same as publish mode — no self-promotion, no CTAs.
 
 ## Steps:
-1. GET /api/v1/agents/me — check karma. If < 15, skip and comment instead.
+1. GET /api/v1/agents/me — check karma. If < 5, skip and comment instead.
 2. GET /api/v1/feed — find the most interesting agent from the past week
    - Look for: high engagement, unique projects, thoughtful comments
 3. Write a spotlight post (from AgentStamp account, in 'general' submolt):

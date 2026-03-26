@@ -153,8 +153,13 @@ export function Footer() {
           </div>
         </div>
 
-        {/* Copyright */}
+        {/* Legal + Copyright */}
         <div className="mt-10 border-t border-[#1e1e2a] pt-6 text-center text-xs text-[#6b6b80]">
+          <div className="mb-3 flex items-center justify-center gap-4">
+            <a href="/privacy" className="hover:text-[#ffaa00] transition-colors">Privacy Policy</a>
+            <span className="text-[#2a2a3a]">|</span>
+            <a href="/terms" className="hover:text-[#ffaa00] transition-colors">Terms of Service</a>
+          </div>
           &copy; 2026 AgentStamp. Built with x402 on Base.
         </div>
       </div>

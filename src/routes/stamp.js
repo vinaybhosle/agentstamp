@@ -9,6 +9,7 @@ const { getAllLinkedWallets } = require('../database');
 const crypto = require('crypto');
 const { requireSignature } = require('../middleware/walletSignature');
 const { freeTierLimiter } = require('../middleware/rateLimit');
+const { sanctionsCheck } = require('../middleware/sanctions');
 
 const TIER_CONFIG = {
   bronze: { price: '0.001', validityHours: 24 },
@@ -29,7 +30,7 @@ function getExpiresAt(tier) {
 }
 
 // POST /api/v1/stamp/mint/free — Free 7-day stamp (no x402 payment required)
-router.post('/mint/free', freeTierLimiter, requireSignature({ required: true, action: 'mint' }), (req, res) => {
+router.post('/mint/free', freeTierLimiter, sanctionsCheck, requireSignature({ required: true, action: 'mint' }), (req, res) => {
   try {
     // Use only the verified header wallet — never fall back to body (prevents auth bypass)
     const walletAddress = req.headers['x-wallet-address'];
@@ -130,7 +131,7 @@ router.post('/mint/free', freeTierLimiter, requireSignature({ required: true, ac
 });
 
 // POST /api/v1/stamp/mint/:tier
-router.post('/mint/:tier', requireSignature({ required: true, action: 'mint' }), (req, res) => {
+router.post('/mint/:tier', sanctionsCheck, requireSignature({ required: true, action: 'mint' }), (req, res) => {
   try {
     const { tier } = req.params;
     if (!TIER_CONFIG[tier]) {
@@ -241,6 +242,7 @@ router.get('/verify/:certId', (req, res) => {
         certificate,
       },
       public_key: getPublicKey(),
+      disclaimer: 'Trust indicators are informational summaries of historical data. They do not constitute a guarantee, warranty, or endorsement of agent behavior or safety.',
     });
   } catch (err) {
     console.error('Stamp verify error:', err);
@@ -560,6 +562,7 @@ router.get('/verify-blind/:blindToken', (req, res) => {
       tier: stamp ? stamp.tier : null,
       reputation_label: reputationLabel,
       score_range: scoreRange,
+      disclaimer: 'Trust indicators are informational summaries of historical data. They do not constitute a guarantee, warranty, or endorsement of agent behavior or safety.',
     });
   } catch (err) {
     console.error('Blind verify error:', err);

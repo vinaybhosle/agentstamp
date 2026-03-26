@@ -87,7 +87,7 @@ export const metadata: Metadata = {
     creator: "@AgentStampHQ",
   },
   verification: {
-    google: "PENDING_VERIFICATION_CODE",
+    google: "3evTaA2_lZCMvCUBLNddoxoqQLQxhb27-7BPs9uA04k",
   },
   other: {
     "application-name": "AgentStamp",

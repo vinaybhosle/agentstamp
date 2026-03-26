@@ -7,10 +7,11 @@ const { computeReputation } = require('../reputation');
 const { appendEvent } = require('../eventLog');
 const { requireSignature } = require('../middleware/walletSignature');
 const { freeTierLimiter } = require('../middleware/rateLimit');
+const { sanctionsCheck } = require('../middleware/sanctions');
 const { AI_ACT_RISK_LEVELS, AGENT_CATEGORIES, TRANSPARENCY_MAX_BYTES, HUMAN_SPONSOR_MAX_LEN } = require('../constants');
 
 // POST /api/v1/registry/register/free — Free 30-day agent registration
-router.post('/register/free', freeTierLimiter, requireSignature({ required: true, action: 'register' }), (req, res) => {
+router.post('/register/free', freeTierLimiter, sanctionsCheck, requireSignature({ required: true, action: 'register' }), (req, res) => {
   try {
     const walletAddress = req.headers['x-wallet-address'] || req.body.wallet_address;
     if (!walletAddress || walletAddress === '0x0000000000000000000000000000000000000000') {
@@ -113,7 +114,7 @@ router.post('/register/free', freeTierLimiter, requireSignature({ required: true
 });
 
 // POST /api/v1/registry/register
-router.post('/register', requireSignature({ required: true, action: 'register' }), (req, res) => {
+router.post('/register', sanctionsCheck, requireSignature({ required: true, action: 'register' }), (req, res) => {
   try {
     const validation = validateAgentRegister(req.body);
     if (!validation.valid) {

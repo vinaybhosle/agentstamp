@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-
 const securityHeaders = [
   { key: 'X-DNS-Prefetch-Control', value: 'on' },
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
@@ -24,6 +23,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   async headers() {
     return [
       {

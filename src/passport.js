@@ -128,6 +128,9 @@ function generatePassport(walletAddress) {
       algorithm: 'Ed25519',
       verify_endpoint: 'https://agentstamp.org/.well-known/passport-public-key',
     },
+
+    // Legal disclaimer
+    disclaimer: 'Trust indicators reflect historical behavioral data and do not guarantee future agent behavior. This passport does not constitute a legal certification or conformity assessment.',
   };
 
   // Sign the entire passport

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Stamp, Database, Sparkles, ArrowRight, Zap, Shield, Globe, CheckCircle2, Code, Crown, Activity, Users, Award, Star, Clock, Rocket, Handshake, EyeOff, FileSearch, Bell, Lock, Hash, BarChart3, ShieldCheck, Layers, Link2, ShieldAlert, Fingerprint, FileKey } from "lucide-react";
+import { Stamp, Database, Sparkles, ArrowRight, Zap, Shield, Globe, CheckCircle2, Code, Crown, Activity, Users, Award, Star, Clock, Rocket, Handshake, EyeOff, FileSearch, Bell, Lock, Hash, BarChart3, ShieldCheck, Layers, Link2, ShieldAlert, Fingerprint, FileKey, Scale, BadgeCheck, RotateCcw, UserCheck, Wrench } from "lucide-react";
 import type { StampStats, Agent, Wish } from "@/types";
 import { StatsSection } from "./StatsSection";
 
@@ -222,6 +222,36 @@ const trustCapabilities = [
     title: "A2A Passport",
     desc: "Google A2A-compatible signed passport. Portable agent identity with trust score, stamp, and wallet links. Built before A2A v0.3 existed.",
     color: "#00f0ff",
+  },
+  {
+    icon: Scale,
+    title: "EU AI Act Compliance",
+    desc: "Structured compliance reports with risk classification, transparency declarations, and audit summaries. Ready for the August 2026 deadline.",
+    color: "#00ff88",
+  },
+  {
+    icon: BadgeCheck,
+    title: "W3C Verifiable Credentials",
+    desc: "Export agent identity as W3C VCs. Portable, standards-compliant credentials that any verifier can check without calling our API.",
+    color: "#00f0ff",
+  },
+  {
+    icon: RotateCcw,
+    title: "Key Rotation & Revocation",
+    desc: "Rotate signing keys without losing identity. Revoke compromised keys instantly. Webhook notifications for lifecycle events.",
+    color: "#c084fc",
+  },
+  {
+    icon: UserCheck,
+    title: "Human Sponsor",
+    desc: "Link every agent to a responsible human. The accountability field compliance teams need for audit trails and incident response.",
+    color: "#ffaa00",
+  },
+  {
+    icon: Wrench,
+    title: "17 MCP Tools",
+    desc: "Full Claude Desktop integration. Trust check, blind verify, forensic audit, registry browse, reputation lookup — all from your MCP client.",
+    color: "#00ff88",
   },
 ];
 

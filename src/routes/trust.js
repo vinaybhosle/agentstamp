@@ -161,6 +161,9 @@ router.get('/check/:walletAddress', async (req, res) => {
       };
     }
 
+    // Add trust indicator disclaimer
+    response.disclaimer = 'Trust indicators reflect historical behavioral data and do not guarantee future agent behavior.';
+
     // If score is low, nudge them to upgrade
     if (reputation.score < 50) {
       response.upgrade_hint = {
