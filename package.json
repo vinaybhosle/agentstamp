@@ -58,5 +58,8 @@
   },
   "devDependencies": {
     "vitest": "^4.1.0"
+  },
+  "overrides": {
+    "picomatch": ">=4.0.4"
   }
 }
