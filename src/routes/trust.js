@@ -599,4 +599,35 @@ router.get('/delegations/:wallet', (req, res) => {
   }
 });
 
+// GET /api/v1/trust/check/team/:teamId — Team trust verdict (FREE)
+router.get('/check/team/:teamId', (req, res) => {
+  try {
+    const { computeTeamReputation } = require('../reputation');
+    const db = getDb();
+
+    const team = db.prepare("SELECT id, name, status FROM teams WHERE id = ?").get(req.params.teamId);
+    if (!team) {
+      return res.status(404).json({ success: false, error: 'Team not found' });
+    }
+
+    const reputation = computeTeamReputation(req.params.teamId);
+
+    res.json({
+      trusted: reputation.score >= 10 && reputation.member_count >= 2,
+      team_id: team.id,
+      team_name: team.name,
+      score: reputation.score,
+      label: reputation.label,
+      member_count: reputation.member_count,
+      weakest_link_applied: reputation.weakest_link_applied,
+      weakest_member: reputation.weakest_member,
+      coverage_bonus: reputation.coverage_bonus,
+      mean_score: reputation.mean_score,
+    });
+  } catch (err) {
+    console.error('Team trust check error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

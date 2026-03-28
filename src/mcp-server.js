@@ -670,6 +670,87 @@ function createMcpServer() {
     }
   );
 
+  // --- Tool: team_trust_check ---
+  server.tool(
+    'team_trust_check',
+    'Trust verdict for a multi-agent team. Returns aggregate trust score (0-100), weakest-link analysis, and per-member breakdown. Teams with score >= 10 and 2+ members are considered trusted.',
+    {
+      team_id: z.string().describe('Team ID to check trust for (e.g. team_abc123)'),
+    },
+    async ({ team_id }) => {
+      const { getDb } = require('./database');
+      const db = getDb();
+
+      const team = db.prepare("SELECT id, name, status FROM teams WHERE id = ?").get(team_id);
+      if (!team) {
+        return { content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'Team not found' }, null, 2) }] };
+      }
+
+      const { computeTeamReputation } = require('./reputation');
+      const reputation = computeTeamReputation(team_id);
+
+      return { content: [{ type: 'text', text: JSON.stringify({
+        trusted: reputation.score >= 10 && reputation.member_count >= 2,
+        team_id: team.id,
+        team_name: team.name,
+        score: reputation.score,
+        label: reputation.label,
+        member_count: reputation.member_count,
+        weakest_link_applied: reputation.weakest_link_applied,
+        weakest_member: reputation.weakest_member,
+        coverage_bonus: reputation.coverage_bonus,
+        mean_score: reputation.mean_score,
+        members: reputation.members,
+      }, null, 2) }] };
+    }
+  );
+
+  // --- Tool: create_team ---
+  // Note: MCP tools run in authenticated agent sessions (Claude Desktop, etc.)
+  // Wallet ownership is NOT verified here — use the REST API with requireSignature for untrusted contexts.
+  server.tool(
+    'create_team',
+    'Create a new agent team for multi-agent trust scoring. Owner is auto-added as first member. Note: for production use, prefer the REST API (POST /api/v1/teams) which requires wallet signature verification.',
+    {
+      name: z.string().describe('Team name (max 100 characters)'),
+      description: z.string().optional().describe('Team description (max 500 characters)'),
+      wallet_address: z.string().describe('Wallet address of the team owner (must be a registered agent)'),
+    },
+    async ({ name, description, wallet_address }) => {
+      const { getDb } = require('./database');
+      const db = getDb();
+      const crypto = require('crypto');
+
+      const agent = db.prepare(
+        "SELECT id FROM agents WHERE wallet_address = ? AND status = 'active' ORDER BY registered_at ASC LIMIT 1"
+      ).get(wallet_address);
+      if (!agent) {
+        return { content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'Owner must be a registered active agent' }, null, 2) }] };
+      }
+
+      const teamId = `team_${crypto.randomBytes(8).toString('hex')}`;
+      const now = new Date().toISOString();
+      const memberId = `tm_${crypto.randomBytes(8).toString('hex')}`;
+
+      const createTeam = db.transaction(() => {
+        db.prepare(
+          'INSERT INTO teams (id, name, description, owner_wallet, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).run(teamId, name.trim(), description?.trim() || null, wallet_address, 'active', now, now);
+        db.prepare(
+          'INSERT INTO team_members (id, team_id, agent_id, role, added_at) VALUES (?, ?, ?, ?, ?)'
+        ).run(memberId, teamId, agent.id, 'owner', now);
+      });
+
+      createTeam();
+
+      return { content: [{ type: 'text', text: JSON.stringify({
+        success: true,
+        team: { id: teamId, name: name.trim(), owner_wallet: wallet_address, created_at: now },
+        trust_check_url: `https://agentstamp.org/api/v1/trust/check/team/${teamId}`,
+      }, null, 2) }] };
+    }
+  );
+
   return server;
 }
 

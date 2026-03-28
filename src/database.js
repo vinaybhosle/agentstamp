@@ -303,6 +303,36 @@ function initialize() {
     // Column already exists — safe to ignore
   }
 
+  // Team trust scoring tables (v2.4.0)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS teams (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      owner_wallet TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_teams_owner ON teams(owner_wallet);
+    CREATE INDEX IF NOT EXISTS idx_teams_status ON teams(status);
+
+    CREATE TABLE IF NOT EXISTS team_members (
+      id TEXT PRIMARY KEY,
+      team_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member',
+      added_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (team_id) REFERENCES teams(id),
+      FOREIGN KEY (agent_id) REFERENCES agents(id),
+      UNIQUE(team_id, agent_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id);
+    CREATE INDEX IF NOT EXISTS idx_team_members_agent ON team_members(agent_id);
+  `);
+
   return db;
 }
 

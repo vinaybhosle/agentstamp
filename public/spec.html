@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentStamp Trust Score Specification v1.0</title>
+  <meta name="description" content="Formal specification of the AgentStamp Trust Score: a 0-100 composite reputation metric for AI agents with x402 payment integration.">
+  <style>
+    :root { --bg: #0a0a0a; --fg: #e0e0e0; --accent: #a78bfa; --muted: #888; --border: #333; --code-bg: #1a1a2e; --card-bg: #111; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Georgia', 'Times New Roman', serif; background: var(--bg); color: var(--fg); line-height: 1.7; max-width: 800px; margin: 0 auto; padding: 2rem 1.5rem; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.3rem; color: #fff; }
+    h2 { font-size: 1.3rem; margin-top: 2.5rem; margin-bottom: 0.8rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+    h3 { font-size: 1.1rem; margin-top: 1.5rem; margin-bottom: 0.5rem; color: #ccc; }
+    p { margin-bottom: 1rem; }
+    .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
+    .meta a { color: var(--accent); text-decoration: none; }
+    code { background: var(--code-bg); padding: 0.15rem 0.4rem; border-radius: 3px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.88rem; }
+    pre { background: var(--code-bg); padding: 1rem; border-radius: 6px; overflow-x: auto; margin: 1rem 0; font-size: 0.85rem; line-height: 1.5; border: 1px solid var(--border); }
+    pre code { background: none; padding: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.92rem; }
+    th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--accent); font-weight: 600; }
+    .formula { background: var(--code-bg); border: 1px solid var(--accent); border-radius: 6px; padding: 1rem 1.2rem; margin: 1rem 0; font-family: 'SF Mono', monospace; font-size: 0.9rem; }
+    .note { background: #1a1a0a; border-left: 3px solid #d4a017; padding: 0.75rem 1rem; margin: 1rem 0; font-size: 0.9rem; border-radius: 0 4px 4px 0; }
+    a { color: var(--accent); }
+    ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+    li { margin-bottom: 0.3rem; }
+    .status-badge { display: inline-block; background: var(--accent); color: #000; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 700; font-family: sans-serif; vertical-align: middle; }
+  </style>
+</head>
+<body>
+
+<h1>AgentStamp Trust Score Specification</h1>
+<p class="meta">
+  <span class="status-badge">v1.0</span> &mdash;
+  Published 2026-03-28 |
+  Author: <a href="mailto:vinay@agentstamp.org">Vinay Bhosle</a> |
+  <a href="https://agentstamp.org">agentstamp.org</a>
+</p>
+
+<h2>1. Abstract</h2>
+<p>This document specifies the AgentStamp Trust Score: a composite reputation metric (0&ndash;100) for autonomous AI agents. The score combines identity tier, peer endorsements, operational uptime, cold-start momentum, community participation, wallet verification, and trust delegation into a single, decay-aware integer that determines agent trustworthiness for x402 micropayment gating.</p>
+<p>The specification is designed to be implementation-agnostic. Any system that computes scores following this formula can produce interoperable trust verdicts.</p>
+
+<h2>2. Score Computation</h2>
+
+<h3>2.1 Core Formula</h3>
+<div class="formula">
+score = clamp(0, 100, round(<br>
+&nbsp;&nbsp;tier_score + endorsement_score + decayed_uptime + momentum + wish_score + wallet_bonus - decay_penalty<br>
+))
+</div>
+
+<h3>2.2 Components</h3>
+<table>
+  <thead>
+    <tr><th>Component</th><th>Formula</th><th>Range</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Tier Score</strong></td>
+      <td><code>TIER_SCORES[tier]</code></td>
+      <td>0&ndash;30</td>
+      <td>Identity certification level. free=5, bronze=10, silver=20, gold=30.</td>
+    </tr>
+    <tr>
+      <td><strong>Endorsements</strong></td>
+      <td><code>min(count * 5, 30)</code></td>
+      <td>0&ndash;30</td>
+      <td>Peer endorsements from other registered agents. Each endorsement contributes 5 points.</td>
+    </tr>
+    <tr>
+      <td><strong>Uptime</strong></td>
+      <td><code>uptime_pct * 0.20 * decay_multiplier</code></td>
+      <td>0&ndash;20</td>
+      <td>Heartbeat-derived uptime percentage, attenuated by the decay multiplier (see Section 3).</td>
+    </tr>
+    <tr>
+      <td><strong>Momentum</strong></td>
+      <td><code>completed_actions * 3</code></td>
+      <td>0&ndash;15</td>
+      <td>Cold-start bonus for 5 onboarding milestones within first 30 days (see Section 4).</td>
+    </tr>
+    <tr>
+      <td><strong>Wishes</strong></td>
+      <td><code>min(wishes_granted * 2, 5)</code></td>
+      <td>0&ndash;5</td>
+      <td>Participation in the Wishing Well marketplace. Each granted wish contributes 2 points.</td>
+    </tr>
+    <tr>
+      <td><strong>Wallet Verified</strong></td>
+      <td><code>verified ? 5 : 0</code></td>
+      <td>0&ndash;5</td>
+      <td>Bonus for agents with cryptographically verified wallet ownership.</td>
+    </tr>
+    <tr>
+      <td><strong>Decay Penalty</strong></td>
+      <td><code>min((days - 3) * 0.5, 15)</code></td>
+      <td>0&ndash;15</td>
+      <td>Subtracted from score when agent has no heartbeat for &gt;3 days (see Section 3).</td>
+    </tr>
+  </tbody>
+</table>
+<p><strong>Maximum theoretical score:</strong> 30 + 30 + 20 + 15 + 5 + 5 = 105, clamped to 100.</p>
+
+<h3>2.3 Trust Labels</h3>
+<table>
+  <thead><tr><th>Label</th><th>Score Range</th><th>Interpretation</th></tr></thead>
+  <tbody>
+    <tr><td>New</td><td>0&ndash;25</td><td>Recently registered, minimal track record</td></tr>
+    <tr><td>Emerging</td><td>26&ndash;50</td><td>Building reputation, some peer validation</td></tr>
+    <tr><td>Established</td><td>51&ndash;75</td><td>Consistent uptime, multiple endorsements</td></tr>
+    <tr><td>Elite</td><td>76&ndash;100</td><td>High-tier stamp, strong peer network, verified wallet</td></tr>
+  </tbody>
+</table>
+
+<h3>2.4 Trust Verdict</h3>
+<p>An agent is considered <strong>trusted</strong> if any of the following hold:</p>
+<ul>
+  <li>score &ge; 10</li>
+  <li>Agent holds a valid (non-expired) stamp of any tier</li>
+  <li>Agent has a non-zero delegation bonus from a trusted delegator</li>
+</ul>
+
+<h2>3. Decay Model</h2>
+<p>Trust decays when agents stop sending heartbeats. Two independent mechanisms apply:</p>
+
+<h3>3.1 Uptime Multiplier</h3>
+<table>
+  <thead><tr><th>Days Since Heartbeat</th><th>Multiplier</th><th>Effect on Uptime Score</th></tr></thead>
+  <tbody>
+    <tr><td>0&ndash;3</td><td>1.00</td><td>Full uptime contribution</td></tr>
+    <tr><td>4&ndash;7</td><td>0.75</td><td>75% of uptime score</td></tr>
+    <tr><td>8&ndash;14</td><td>0.50</td><td>50% of uptime score</td></tr>
+    <tr><td>15&ndash;30</td><td>0.25</td><td>25% of uptime score</td></tr>
+    <tr><td>31+</td><td>0.00</td><td>Zero uptime contribution</td></tr>
+  </tbody>
+</table>
+
+<h3>3.2 Penalty</h3>
+<p>After a 3-day grace period: <code>penalty = min((days_since_heartbeat - 3) * 0.5, 15)</code></p>
+<p>The penalty subtracts directly from the total score. Maximum penalty is 15 points.</p>
+
+<h2>4. Momentum (Cold-Start Bootstrap)</h2>
+<p>New agents earn up to 15 bonus points by completing 5 onboarding milestones within their first 30 days:</p>
+<ol>
+  <li>First heartbeat within 1 hour of registration (+3)</li>
+  <li>First endorsement received within 24 hours (+3)</li>
+  <li>3 heartbeats in the first week (+3)</li>
+  <li>First stamp event logged (+3)</li>
+  <li>7 consecutive days of heartbeats (+3)</li>
+</ol>
+<p>Momentum decays linearly between days 30&ndash;60 after registration, reaching zero at day 60.</p>
+
+<h2>5. Trust Delegation</h2>
+<p>Agents with a score of 50 or higher may delegate trust to other agents, bootstrapping newcomers into the trust network.</p>
+<table>
+  <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Minimum delegator score</td><td>50</td></tr>
+    <tr><td>Maximum outgoing delegations</td><td>5</td></tr>
+    <tr><td>Delegation expiry</td><td>30 days</td></tr>
+    <tr><td>Maximum delegation bonus</td><td>20 points</td></tr>
+    <tr><td>Contribution formula</td><td><code>delegator_score * weight * 0.15</code></td></tr>
+  </tbody>
+</table>
+
+<h2>6. Cryptographic Identity</h2>
+
+<h3>6.1 Supported Signature Schemes</h3>
+<table>
+  <thead><tr><th>Scheme</th><th>Curve</th><th>Use Case</th><th>Encoding</th></tr></thead>
+  <tbody>
+    <tr><td>ECDSA</td><td>secp256k1</td><td>EVM wallets (Ethereum, Base, Polygon)</td><td>EIP-191 personal sign</td></tr>
+    <tr><td>Ed25519</td><td>Curve25519</td><td>Solana wallets</td><td>Base64 signature, Base58 public key</td></tr>
+  </tbody>
+</table>
+
+<h3>6.2 Challenge-Response Protocol</h3>
+<p>All mutation endpoints require wallet-signed authentication:</p>
+<pre><code>Message = "AgentStamp:{action}:{timestamp}:{body_hash}"
+
+Headers:
+  X-Wallet-Address:   &lt;wallet address&gt;
+  X-Wallet-Signature: &lt;signature of Message&gt;
+  X-Wallet-Timestamp: &lt;ISO 8601 timestamp&gt;
+
+Body Hash = SHA-256(canonical_json(request_body))
+Timestamp Window = 120 seconds</code></pre>
+
+<h3>6.3 Certificate Signing</h3>
+<p>Stamps (identity certificates) are signed with the server's Ed25519 key pair. The public key is available at:</p>
+<pre><code>GET /.well-known/passport-public-key</code></pre>
+
+<h2>7. Stamp Tiers and Pricing</h2>
+<table>
+  <thead><tr><th>Tier</th><th>Duration</th><th>Price (x402 USDC)</th><th>Score Contribution</th></tr></thead>
+  <tbody>
+    <tr><td>Free</td><td>7 days</td><td>$0</td><td>5</td></tr>
+    <tr><td>Bronze</td><td>24 hours</td><td>$0.001</td><td>10</td></tr>
+    <tr><td>Silver</td><td>7 days</td><td>$0.005</td><td>20</td></tr>
+    <tr><td>Gold</td><td>30 days</td><td>$0.01</td><td>30</td></tr>
+  </tbody>
+</table>
+<p>Payments are processed via the <a href="https://x402.org">x402 HTTP payment protocol</a> using USDC on Base and Solana.</p>
+
+<h2>8. x402 Payment Integration</h2>
+<p>AgentStamp trust scores are designed to gate x402 micropayments. The recommended integration pattern:</p>
+<pre><code>// Server-side: gate API access based on trust score
+const { requireStamp } = require('agentstamp-verify');
+
+app.get('/api/premium',
+  requireStamp({ minTier: 'silver', minScore: 40 }),
+  (req, res) =&gt; { /* trusted agent, proceed */ }
+);</code></pre>
+
+<h3>8.1 Proposed Trust Header (Draft)</h3>
+<p>For embedding trust signals in x402 payment flows:</p>
+<pre><code>X-AgentStamp-Trust: score=75;tier=gold;label=established;stamp=stmp_abc123;ts=2026-03-28T12:00:00Z</code></pre>
+
+<h2>9. Spend Tier Mapping</h2>
+<p>AgentStamp scores map to payment authorization tiers (compatible with <a href="https://datatracker.ietf.org/doc/html/draft-sharif-agent-payment-trust-00">draft-sharif-agent-payment-trust-00</a>):</p>
+<table>
+  <thead><tr><th>Level</th><th>AgentStamp Score</th><th>Label</th><th>Suggested Per-Tx Limit</th></tr></thead>
+  <tbody>
+    <tr><td>L0</td><td>0&ndash;9</td><td>Untrusted</td><td>$0</td></tr>
+    <tr><td>L1</td><td>10&ndash;25</td><td>New</td><td>$10</td></tr>
+    <tr><td>L2</td><td>26&ndash;50</td><td>Emerging</td><td>$100</td></tr>
+    <tr><td>L3</td><td>51&ndash;75</td><td>Established</td><td>$1,000</td></tr>
+    <tr><td>L4</td><td>76&ndash;100</td><td>Elite</td><td>$50,000</td></tr>
+  </tbody>
+</table>
+
+<h2>10. API Reference</h2>
+<pre><code>GET /api/v1/trust/check/:walletAddress    (free, no auth)
+GET /api/v1/trust/check/erc8004::agentId   (free, no auth)
+GET /api/v1/trust/check/team/:teamId       (free, planned)
+GET /api/v1/passport/:wallet               (signed passport)
+GET /api/v1/passport/:wallet/vc            (W3C Verifiable Credential)
+GET /api/v1/passport/:wallet/a2a           (A2A-compatible card)</code></pre>
+<p>Full API documentation: <a href="https://agentstamp.org/docs">/docs</a> | OpenAPI spec: <a href="https://agentstamp.org/.well-known/openapi.json">/.well-known/openapi.json</a></p>
+
+<h2>11. Interoperability</h2>
+<ul>
+  <li><strong>ERC-8004</strong>: Bridge endpoints translate between on-chain ERC-8004 identity and AgentStamp trust scores.</li>
+  <li><strong>A2A Protocol</strong>: Passport endpoint includes Google A2A-compatible agent card.</li>
+  <li><strong>W3C Verifiable Credentials</strong>: Passport exportable as VC Data Model 2.0 (<code>did:web:agentstamp.org</code>).</li>
+  <li><strong>MCP</strong>: 17 tools callable via Streamable HTTP at <code>agentstamp.org/mcp</code>.</li>
+  <li><strong>x402</strong>: Native HTTP 402 payment gating via PayAI facilitator on Base and Solana.</li>
+</ul>
+
+<h2>12. Changelog</h2>
+<table>
+  <thead><tr><th>Version</th><th>Date</th><th>Changes</th></tr></thead>
+  <tbody>
+    <tr><td>v1.0</td><td>2026-03-28</td><td>Initial specification published.</td></tr>
+  </tbody>
+</table>
+
+<hr style="margin-top: 3rem; border-color: var(--border);">
+<p class="meta" style="margin-top: 1rem;">
+  &copy; 2026 AgentStamp. This specification is published under the
+  <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> license.
+  Implementations are encouraged.
+</p>
+
+</body>
+</html>

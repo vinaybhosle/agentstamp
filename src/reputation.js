@@ -349,6 +349,84 @@ function computeDelegationBonus(walletAddress, db) {
   });
 }
 
+// ─── Team Trust Scoring ─────────────────────────────────────────────────────
+
+const TEAM_MAX_MEMBERS = 20;
+const WEAKEST_LINK_THRESHOLD = 10;
+const WEAKEST_LINK_FACTOR = 0.7;
+const COVERAGE_BONUS_PER_MEMBER = 0.02;
+const COVERAGE_BONUS_FLOOR = 3;
+const COVERAGE_BONUS_MAX = 1.3;
+
+/**
+ * Compute aggregate trust score for a team of agents.
+ * Returns a new immutable result object — never mutates inputs.
+ *
+ * Formula: team_score = floor(mean(member_scores) * weakest_link_factor * coverage_bonus)
+ *   - weakest_link_factor: 0.7 if any member scores below 10, else 1.0
+ *   - coverage_bonus: 1.0 + 0.02 per member above 3 (max 1.3)
+ */
+function computeTeamReputation(teamId) {
+  const db = getDb();
+
+  const members = db.prepare(`
+    SELECT tm.agent_id, tm.role, a.name, a.wallet_address, a.endorsement_count, a.status
+    FROM team_members tm
+    JOIN agents a ON a.id = tm.agent_id
+    WHERE tm.team_id = ?
+  `).all(teamId);
+
+  if (members.length === 0) {
+    return Object.freeze({
+      score: 0,
+      label: 'new',
+      member_count: 0,
+      members: [],
+      weakest_link_applied: false,
+      coverage_bonus: 1.0,
+      mean_score: 0,
+    });
+  }
+
+  const memberScores = members.map(m => {
+    const rep = computeReputation(m.agent_id);
+    const score = rep ? rep.score : 0;
+    const label = rep ? rep.label : 'new';
+    return Object.freeze({
+      agent_id: m.agent_id,
+      name: m.name,
+      role: m.role,
+      score,
+      label,
+      status: m.status,
+    });
+  });
+
+  const scores = memberScores.map(m => m.score);
+  const mean = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+  const minScore = Math.min(...scores);
+
+  const weakestLinkApplied = minScore < WEAKEST_LINK_THRESHOLD;
+  const wlFactor = weakestLinkApplied ? WEAKEST_LINK_FACTOR : 1.0;
+
+  const extraMembers = Math.max(0, members.length - COVERAGE_BONUS_FLOOR);
+  const coverageBonus = Math.min(1.0 + extraMembers * COVERAGE_BONUS_PER_MEMBER, COVERAGE_BONUS_MAX);
+
+  const rawScore = Math.floor(mean * wlFactor * coverageBonus);
+  const score = Math.max(0, Math.min(100, rawScore));
+
+  return Object.freeze({
+    score,
+    label: getLabel(score),
+    member_count: members.length,
+    members: Object.freeze(memberScores),
+    weakest_link_applied: weakestLinkApplied,
+    weakest_member: weakestLinkApplied ? memberScores.find(m => m.score === minScore) : null,
+    coverage_bonus: Math.round(coverageBonus * 100) / 100,
+    mean_score: Math.round(mean * 100) / 100,
+  });
+}
+
 module.exports = {
   computeReputation,
   computeDecayInfo,
@@ -356,9 +434,11 @@ module.exports = {
   getLabel,
   getScoreRange,
   computeDelegationBonus,
+  computeTeamReputation,
   DELEGATION_MIN_SCORE,
   DELEGATION_MAX_OUTGOING,
   DELEGATION_MAX_DAYS,
   DELEGATION_BONUS_CAP,
   DELEGATION_WEIGHT_FACTOR,
+  TEAM_MAX_MEMBERS,
 };

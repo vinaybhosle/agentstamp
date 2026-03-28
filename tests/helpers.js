@@ -175,6 +175,27 @@ function createTestDb() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_blind_tokens_wallet ON blind_tokens(wallet_address);
+
+    CREATE TABLE teams (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      owner_wallet TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE team_members (
+      id TEXT PRIMARY KEY,
+      team_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member',
+      added_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(team_id, agent_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id);
+    CREATE INDEX IF NOT EXISTS idx_team_members_agent ON team_members(agent_id);
   `);
 
   return db;

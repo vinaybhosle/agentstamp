@@ -54,7 +54,7 @@ describe('Flow 15 — v2.3.0 Features', () => {
 
   describe('Compliance report', () => {
     it('returns structured compliance report', async () => {
-      const res = await get(`/api/v1/compliance/report/${agentId}`);
+      const res = await get(`/api/v1/compliance/readiness/${agentId}`);
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.agent_id).toBe(agentId);
@@ -64,7 +64,7 @@ describe('Flow 15 — v2.3.0 Features', () => {
     });
 
     it('article_52_disclosure is a structured object', async () => {
-      const res = await get(`/api/v1/compliance/report/${agentId}`);
+      const res = await get(`/api/v1/compliance/readiness/${agentId}`);
       const disclosure = res.body.ai_act.article_52_disclosure;
       expect(typeof disclosure).toBe('object');
       expect(disclosure.is_ai_system).toBe(true);
@@ -72,7 +72,7 @@ describe('Flow 15 — v2.3.0 Features', () => {
     });
 
     it('returns 404 for nonexistent agent', async () => {
-      const res = await get('/api/v1/compliance/report/agt_doesnotexist');
+      const res = await get('/api/v1/compliance/readiness/agt_doesnotexist');
       expect(res.status).toBe(404);
     });
   });

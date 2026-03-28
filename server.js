@@ -26,6 +26,7 @@ const auditRoutes = require('./src/routes/audit');
 const bridgeRoutes = require('./src/routes/bridge');
 const complianceRoutes = require('./src/routes/compliance');
 const discoveryRoutes = require('./src/routes/discovery');
+const teamRoutes = require('./src/routes/teams');
 const { mountMcpOnExpress } = require('./src/mcp-server');
 
 // Initialize core systems
@@ -329,7 +330,7 @@ const PAID_ROUTE_PATTERNS = [
   app.use(healthRoutes);
   app.use('/api/v1/stamp', mutationLimiter, stampRoutes);
   app.use('/api/v1/registry', readLimiter, registryRoutes);
-  app.use('/api/v1/well', mutationLimiter, wellRoutes);
+  app.use('/api/v1/well', readLimiter, wellRoutes);
   app.use('/api/v1/passport', readLimiter, passportRoutes);
   app.use('/api/v1/analytics', analyticsLimiter, analyticsRoutes);
   app.use('/api/v1/badge', readLimiter, badgeRoutes);
@@ -341,9 +342,15 @@ const PAID_ROUTE_PATTERNS = [
   app.use('/api/v1/audit', readLimiter, auditRoutes);
   app.use('/api/v1/compliance', readLimiter, complianceRoutes);
   app.use('/api/v1/discovery', readLimiter, discoveryRoutes);
+  app.use('/api/v1/teams', teamRoutes);
 
   // MCP server (Streamable HTTP transport)
   mountMcpOnExpress(app, '/mcp');
+
+  // Clean URL routes for static pages
+  app.get('/spec', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'spec.html'));
+  });
 
   // Static files
   app.use(express.static(path.join(__dirname, 'public')));
@@ -485,6 +492,10 @@ POST /api/v1/webhooks/register — Register a webhook (events: stamp_minted, sta
 GET /api/v1/webhooks — List your webhooks
 DELETE /api/v1/webhooks/:id — Remove a webhook
 
+## Trust Score Specification
+Full specification of the AgentStamp Trust Score (0-100 composite metric): https://agentstamp.org/spec
+Covers: scoring formula, decay model, delegation, cryptographic identity, x402 integration, spend tier mapping.
+
 ## Discovery
 MCP Live Server: https://agentstamp.org/mcp (Streamable HTTP — connect with any MCP client)
 MCP Manifest: https://agentstamp.org/.well-known/mcp.json
@@ -581,6 +592,7 @@ Facilitator: ${config.facilitatorUrl}
   <url><loc>https://agentstamp.org/about</loc><priority>0.7</priority><changefreq>monthly</changefreq></url>
   <url><loc>https://agentstamp.org/insights</loc><priority>0.7</priority><changefreq>daily</changefreq></url>
   <url><loc>https://agentstamp.org/verify</loc><priority>0.6</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://agentstamp.org/spec</loc><priority>0.8</priority><changefreq>monthly</changefreq></url>
   <url><loc>https://agentstamp.org/.well-known/openapi.json</loc><priority>0.5</priority><changefreq>weekly</changefreq></url>
   <url><loc>https://agentstamp.org/llms.txt</loc><priority>0.4</priority><changefreq>weekly</changefreq></url>
 ${agentUrls}</urlset>`);
