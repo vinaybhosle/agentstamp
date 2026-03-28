@@ -37,7 +37,14 @@ tmp_*.json
 tmp_*.py
 tmp_*.js
 
-# Local ops scripts (not for GitHub)
+# Local ops scripts (not for GitHub — moltbook, research, DM automation)
+scripts/moltbook-*.sh
+scripts/moltbook-*.md
+scripts/moltbook-*.js
+scripts/research-*.sh
+scripts/research-*.md
+scripts/*-launchd.sh
+scripts/bazaar-*.js
 parse_*.py
 send_*.py
 get_*.py
