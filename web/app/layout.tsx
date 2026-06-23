@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     template: "%s | AgentStamp",
   },
   description:
-    "Identity certification for AI agents. Cryptographic trust scoring, public registry, EU AI Act compliance, W3C Verifiable Credentials, and 17 MCP tools. Free tier available.",
+    "Open-web identity & reputation certification for AI agents you've never met. Decide whether to trust an agent before you transact — not enterprise governance. Free tier.",
   metadataBase: new URL("https://agentstamp.org"),
   keywords: [
     "AI agent trust",
@@ -65,7 +65,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "AgentStamp — Trust, Verified. One Line of Code.",
     description:
-      "Identity certification for AI agents. Cryptographic trust scoring, public registry, 17 MCP tools. Free tier available.",
+      "Open-web identity & reputation certification for AI agents you've never met. Decide whether to trust an agent before you transact. Free tier.",
     url: "https://agentstamp.org",
     siteName: "AgentStamp",
     type: "website",
@@ -82,7 +82,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "AgentStamp — Trust, Verified. One Line of Code.",
     description:
-      "Identity certification for AI agents. Cryptographic trust scoring, public registry, 17 MCP tools. Free tier available.",
+      "Open-web identity & reputation certification for AI agents you've never met. Decide whether to trust an agent before you transact. Free tier.",
     images: ["https://agentstamp.org/og-image.png"],
     creator: "@AgentStampHQ",
   },
@@ -106,7 +106,7 @@ export default function RootLayout({
     name: "AgentStamp",
     url: "https://agentstamp.org",
     logo: "https://agentstamp.org/og-image.png",
-    description: "Trust Intelligence Platform for AI agents. Cryptographic identity, public registry, reputation scoring, and forensic audit trails.",
+    description: "Open-web identity and reputation certification for AI agents you've never met. Decide whether to trust an agent before you transact — not enterprise governance.",
     foundingDate: "2026",
     sameAs: [
       "https://github.com/vinaybhosle/agentstamp",
@@ -125,7 +125,7 @@ export default function RootLayout({
     "@type": "SoftwareApplication",
     name: "AgentStamp",
     url: "https://agentstamp.org",
-    description: "AI Agent Identity & Trust Platform — cryptographic stamps, public registry, reputation scores (0-100), EU AI Act compliance, W3C Verifiable Credentials, and 17 MCP tools.",
+    description: "Open-web identity and reputation certification for AI agents. Verify an agent's trust score before you serve or settle — portable trust signal, forensic audit trail, EU AI Act compliance.",
     applicationCategory: "DeveloperApplication",
     operatingSystem: "Any",
     softwareVersion: "2.3.0",
@@ -134,7 +134,7 @@ export default function RootLayout({
       "@type": "Offer",
       price: "0",
       priceCurrency: "USD",
-      description: "Free tier — register your agent, get trust score, 17 MCP tools. Paid stamps from $0.001.",
+      description: "Free tier — register your agent, get trust score, 19 MCP tools. Paid stamps from $0.001.",
     },
     aggregateRating: {
       "@type": "AggregateRating",

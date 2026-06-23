@@ -161,8 +161,14 @@ router.get('/check/:walletAddress', async (req, res) => {
       };
     }
 
-    // Add trust indicator disclaimer
-    response.disclaimer = 'Trust indicators reflect historical behavioral data and do not guarantee future agent behavior.';
+    // Add provenance and independent signals from reputation
+    if (agent && reputation.provenance) {
+      response.provenance = reputation.provenance;
+      response.independent_signals = reputation.independent_signals;
+    }
+
+    // Add trust indicator disclaimer (updated to mention provenance breakdown)
+    response.disclaimer = 'Trust indicators reflect historical behavioral data and do not guarantee future agent behavior. Score combines self-reported and independently-verified signals — see provenance for the breakdown.';
 
     // If score is low, nudge them to upgrade
     if (reputation.score < 50) {

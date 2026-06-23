@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   Wallet,
@@ -14,7 +14,18 @@ import {
   Shield,
   Zap,
   Crown,
+  AlertCircle,
+  ExternalLink,
 } from "lucide-react";
+import {
+  type StampTier,
+  type StampResult,
+  NoWalletError,
+  UserRejectedError,
+  BackendError,
+  payAndMintStamp,
+} from "@/lib/payment";
+import { track } from "@/lib/analytics";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://agentstamp.org";
 
@@ -28,6 +39,78 @@ const CATEGORIES = [
   "infrastructure",
   "other",
 ];
+
+// ---------------------------------------------------------------------------
+// Tier metadata
+// ---------------------------------------------------------------------------
+
+interface TierMeta {
+  tier: StampTier;
+  label: string;
+  price: string;
+  validity: string;
+  hint: string;
+  color: string;
+  textColor: string;
+  borderColor: string;
+  badgeColor: string;
+  maxValueUsdc: bigint; // in USDC base units (6 decimals)
+}
+
+const TIERS: TierMeta[] = [
+  {
+    tier: "bronze",
+    label: "Bronze",
+    price: "$0.001",
+    validity: "24h",
+    hint: "Try paid verification for a day",
+    color: "#CD7F32",
+    textColor: "text-[#CD7F32]",
+    borderColor: "border-[#CD7F32]",
+    badgeColor: "bg-[#CD7F32]/10",
+    maxValueUsdc: BigInt(1_000), // $0.001 = 1000 units (6 dec)
+  },
+  {
+    tier: "silver",
+    label: "Silver",
+    price: "$0.005",
+    validity: "7d",
+    hint: "Weekly stamp, higher trust score",
+    color: "#C0C0C0",
+    textColor: "text-[#C0C0C0]",
+    borderColor: "border-[#C0C0C0]",
+    badgeColor: "bg-[#C0C0C0]/10",
+    maxValueUsdc: BigInt(5_000), // $0.005
+  },
+  {
+    tier: "gold",
+    label: "Gold",
+    price: "$0.01",
+    validity: "30d",
+    hint: "Monthly premium — top reputation tier",
+    color: "#FFD700",
+    textColor: "text-[#FFD700]",
+    borderColor: "border-[#FFD700]",
+    badgeColor: "bg-[#FFD700]/10",
+    maxValueUsdc: BigInt(10_000), // $0.01
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Paid-mint UI states
+// ---------------------------------------------------------------------------
+
+type PaidMintState =
+  | { status: "idle" }
+  | { status: "confirm"; tier: TierMeta }
+  | { status: "connecting" }
+  | { status: "awaiting-payment"; tier: TierMeta }
+  | { status: "success"; stamp: StampResult; tier: TierMeta }
+  | { status: "error"; message: string; tier?: TierMeta; paymentMaybeCharged?: boolean };
+
+// ---------------------------------------------------------------------------
+// Free-mint registration result
+// ---------------------------------------------------------------------------
 
 interface RegistrationResult {
   agent: {
@@ -43,6 +126,10 @@ interface RegistrationResult {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export default function RegisterPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -57,9 +144,50 @@ export default function RegisterPage() {
   const [capabilities, setCapabilities] = useState("");
   const [endpointUrl, setEndpointUrl] = useState("");
 
-  const canProceedStep1 = walletAddress.length >= 10;
-  const canProceedStep2 = name.length >= 2 && description.length >= 10 && category;
+  // Paid mint state
+  const [paidMint, setPaidMint] = useState<PaidMintState>({ status: "idle" });
 
+  // Upgrade card ref for IntersectionObserver
+  const upgradeCardRef = useRef<HTMLDivElement>(null);
+  const upgradeViewTracked = useRef(false);
+
+  const canProceedStep1 = walletAddress.length >= 10;
+  const canProceedStep2 =
+    name.length >= 2 && description.length >= 10 && category;
+
+  // ---------------------------------------------------------------------------
+  // Analytics: register_view on mount
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    track("register_view");
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Analytics: upgrade_card_view via IntersectionObserver
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!upgradeCardRef.current || upgradeViewTracked.current) return;
+    if (typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && !upgradeViewTracked.current) {
+            upgradeViewTracked.current = true;
+            track("upgrade_card_view");
+            observer.disconnect();
+          }
+        }
+      },
+      { threshold: 0.5 }
+    );
+    observer.observe(upgradeCardRef.current);
+    return () => observer.disconnect();
+  }, [step]); // re-run when step changes so the ref is in the DOM
+
+  // ---------------------------------------------------------------------------
+  // Free mint
+  // ---------------------------------------------------------------------------
   async function handleRegister() {
     setLoading(true);
     setError("");
@@ -92,6 +220,7 @@ export default function RegisterPage() {
       }
 
       setResult(data);
+      track("free_mint_success");
       setStep(4);
     } catch {
       setError("Network error. Please check your connection and try again.");
@@ -99,6 +228,223 @@ export default function RegisterPage() {
       setLoading(false);
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Paid mint — tier badge click handler
+  // ---------------------------------------------------------------------------
+  function handleTierClick(tierMeta: TierMeta) {
+    track("pay_click", { tier: tierMeta.tier, price: tierMeta.price });
+    setPaidMint({ status: "confirm", tier: tierMeta });
+  }
+
+  async function handleConfirmPay(tierMeta: TierMeta) {
+    setPaidMint({ status: "connecting" });
+
+    try {
+      setPaidMint({ status: "awaiting-payment", tier: tierMeta });
+
+      const stamp = await payAndMintStamp({
+        tier: tierMeta.tier,
+        name: name || undefined,
+        apiBase: API_BASE,
+        maxValueUsdc: tierMeta.maxValueUsdc,
+      });
+
+      track("paid_mint_success", { tier: tierMeta.tier });
+      setPaidMint({ status: "success", stamp, tier: tierMeta });
+    } catch (err: unknown) {
+      let reason = "unknown";
+      let message = "Payment failed. Please try again.";
+
+      // If the request reached the backend (any BackendError other than a 402
+      // "payment required"), the x402 payment was already accepted — so a naive
+      // retry would charge the user a SECOND time. Flag it and suppress retry.
+      const paymentMaybeCharged =
+        err instanceof BackendError && err.statusCode !== 402;
+
+      if (err instanceof NoWalletError) {
+        reason = "no-wallet";
+        message = err.message;
+      } else if (err instanceof UserRejectedError) {
+        reason = "user-rejected";
+        message = "You rejected the request. No payment was taken.";
+      } else if (err instanceof BackendError) {
+        reason = "backend-error";
+        // Defense-in-depth: cap + flatten any server error text before display.
+        message = err.message.replace(/\s+/g, " ").trim().slice(0, 200);
+      } else if (err instanceof Error) {
+        reason = err.message.includes("payment") ? "payment-failed" : "unknown";
+        message = err.message.replace(/\s+/g, " ").trim().slice(0, 200);
+      }
+
+      track("pay_error", { reason });
+      setPaidMint({ status: "error", message, tier: tierMeta, paymentMaybeCharged });
+    }
+  }
+
+  function handleCancelPay() {
+    setPaidMint({ status: "idle" });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render helpers
+  // ---------------------------------------------------------------------------
+
+  function renderPaidMintOverlay() {
+    if (paidMint.status === "idle") return null;
+
+    if (paidMint.status === "confirm") {
+      const t = paidMint.tier;
+      return (
+        <div className="mt-4 rounded-lg border border-[#ffaa00]/30 bg-[#111118] p-5">
+          <p className="text-sm font-semibold text-[#e8e8ed] mb-1">
+            Confirm Paid Stamp — {t.label}
+          </p>
+          <p className="text-xs text-[#6b6b80] mb-3">
+            You will pay exactly{" "}
+            <span className={`font-bold ${t.textColor}`}>{t.price} USDC</span> on Base
+            for a {t.validity} stamp. Your wallet will prompt for signature and
+            payment. No payment is taken until you approve both.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => handleConfirmPay(t)}
+              className={`inline-flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-bold text-[#050508] transition-all`}
+              style={{ backgroundColor: t.color }}
+            >
+              <Zap className="size-3.5" />
+              Pay {t.price} &amp; Mint
+            </button>
+            <button
+              onClick={handleCancelPay}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#1e1e2a] px-5 py-2 text-sm text-[#6b6b80] hover:text-[#e8e8ed] transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (
+      paidMint.status === "connecting" ||
+      paidMint.status === "awaiting-payment"
+    ) {
+      const label =
+        paidMint.status === "connecting"
+          ? "Connecting wallet…"
+          : "Awaiting payment approval in your wallet…";
+      return (
+        <div className="mt-4 rounded-lg border border-[#ffaa00]/20 bg-[#111118] p-4 flex items-center gap-3">
+          <Loader2 className="size-4 animate-spin text-[#ffaa00]" />
+          <p className="text-sm text-[#6b6b80]">{label}</p>
+        </div>
+      );
+    }
+
+    if (paidMint.status === "error") {
+      const maybeCharged = paidMint.paymentMaybeCharged === true;
+      return (
+        <div className="mt-4 rounded-lg border border-[#ff4444]/20 bg-[#ff4444]/5 p-4">
+          <div className="flex items-start gap-2 mb-2">
+            <AlertCircle className="size-4 text-[#ff4444] mt-0.5 shrink-0" />
+            <p className="text-sm text-[#ff4444]">{paidMint.message}</p>
+          </div>
+          {maybeCharged && (
+            <p className="text-xs text-[#ffaa00] mb-1">
+              ⚠️ Your payment may have already been processed. Do not retry — that
+              could charge you again. Verify your stamp below or contact support.
+            </p>
+          )}
+          <div className="flex gap-3 mt-3">
+            {/* Only offer Retry when we are confident NO payment was taken
+                (no-wallet, user-rejected, or a pre-payment failure). If the
+                request reached the backend, retry would double-charge. */}
+            {paidMint.tier && !maybeCharged && (
+              <button
+                onClick={() =>
+                  paidMint.tier && handleConfirmPay(paidMint.tier)
+                }
+                className="text-xs text-[#ffaa00] hover:underline"
+              >
+                Retry
+              </button>
+            )}
+            {maybeCharged && (
+              <Link
+                href="/verify"
+                className="text-xs text-[#00ff88] hover:underline"
+              >
+                Verify my stamp
+              </Link>
+            )}
+            <button
+              onClick={handleCancelPay}
+              className="text-xs text-[#6b6b80] hover:text-[#e8e8ed]"
+            >
+              Dismiss
+            </button>
+            <a
+              href={maybeCharged ? "mailto:vinay@agentstamp.org" : "/docs"}
+              className="text-xs text-[#00f0ff] hover:underline ml-auto"
+            >
+              {maybeCharged ? "Contact support" : "Use the API instead"}
+            </a>
+          </div>
+        </div>
+      );
+    }
+
+    if (paidMint.status === "success") {
+      const t = paidMint.tier;
+      const s = paidMint.stamp;
+      return (
+        <div className="mt-4 rounded-lg border border-[#00ff88]/20 bg-[#00ff88]/5 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <CheckCircle2 className="size-4 text-[#00ff88]" />
+            <p className="text-sm font-bold text-[#00ff88]">
+              {t.label} Stamp Minted!
+            </p>
+          </div>
+          <div className="space-y-1.5 text-xs mb-4">
+            <div className="flex justify-between">
+              <span className="text-[#6b6b80]">Stamp ID</span>
+              <span className="font-mono text-[#00f0ff]">{s.id}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[#6b6b80]">Tier</span>
+              <span className={`capitalize font-semibold ${t.textColor}`}>
+                {s.tier}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[#6b6b80]">Valid until</span>
+              <span className="text-[#e8e8ed]">
+                {new Date(s.expires_at).toLocaleDateString()}
+              </span>
+            </div>
+          </div>
+          {s.verify_url && (
+            <a
+              href={s.verify_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-[#00f0ff] hover:underline"
+            >
+              <ExternalLink className="size-3" />
+              View signed certificate
+            </a>
+          )}
+        </div>
+      );
+    }
+
+    return null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // JSX
+  // ---------------------------------------------------------------------------
 
   return (
     <div className="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8 py-16">
@@ -447,30 +793,46 @@ export default function RegisterPage() {
             </Link>
           </div>
 
-          {/* Upgrade CTA */}
-          <div className="rounded-lg border border-[#ffaa00]/20 bg-[#ffaa00]/5 p-5">
+          {/* Upgrade CTA — tier badges are now clickable pay buttons */}
+          <div ref={upgradeCardRef} className="rounded-lg border border-[#ffaa00]/20 bg-[#ffaa00]/5 p-5">
             <div className="flex items-center justify-center gap-2 mb-2">
               <Crown className="size-4 text-[#ffaa00]" />
               <p className="text-sm font-semibold text-[#ffaa00]">Upgrade for More</p>
             </div>
-            <p className="text-xs text-[#6b6b80] mb-3">
+            <p className="text-xs text-[#6b6b80] mb-4">
               Upgrade to a paid tier for permanent registration, higher reputation scores, and
-              premium verification stamps.
+              premium verification stamps. Pay with USDC on Base — no account needed.
             </p>
-            <div className="flex items-center justify-center gap-4 text-xs">
-              <span className="inline-flex items-center gap-1.5 text-[#CD7F32]">
-                <Shield className="size-3" />
-                Bronze $0.01
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-[#C0C0C0]">
-                <Shield className="size-3" />
-                Silver $0.01
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-[#FFD700]">
-                <Shield className="size-3" />
-                Gold $0.01
-              </span>
+
+            {/* Tier badges — clickable */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 mb-3">
+              {TIERS.map((t) => (
+                <button
+                  key={t.tier}
+                  onClick={() => handleTierClick(t)}
+                  disabled={paidMint.status !== "idle" && paidMint.status !== "error"}
+                  className={`flex flex-col items-center gap-1 rounded-lg border px-4 py-3 transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed ${t.badgeColor} ${t.borderColor}`}
+                  style={{ borderColor: `${t.color}44` }}
+                >
+                  <span className={`inline-flex items-center gap-1.5 text-sm font-bold ${t.textColor}`}>
+                    <Shield className="size-3.5" />
+                    {t.label} {t.price}
+                  </span>
+                  <span className="text-[10px] text-[#6b6b80]">{t.validity} · {t.hint}</span>
+                </button>
+              ))}
             </div>
+
+            {/* Paid mint overlay (confirm / loading / success / error) */}
+            {renderPaidMintOverlay()}
+
+            {/* Fallback API link — always visible */}
+            <p className="mt-3 text-[10px] text-[#3a3a4a] text-center">
+              No wallet extension?{" "}
+              <Link href="/docs" className="text-[#00f0ff] hover:underline">
+                Use the API for paid registration
+              </Link>
+            </p>
           </div>
         </div>
       )}

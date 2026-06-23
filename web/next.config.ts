@@ -69,6 +69,18 @@ const nextConfig: NextConfig = {
         source: "/mcp",
         destination: `${apiBackend}/mcp`,
       },
+      {
+        source: "/spec",
+        destination: `${apiBackend}/spec`,
+      },
+      {
+        source: "/sitemap.xml",
+        destination: `${apiBackend}/sitemap.xml`,
+      },
+      {
+        source: "/ai.txt",
+        destination: `${apiBackend}/ai.txt`,
+      },
     ];
   },
 };

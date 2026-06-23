@@ -27,6 +27,7 @@ const bridgeRoutes = require('./src/routes/bridge');
 const complianceRoutes = require('./src/routes/compliance');
 const discoveryRoutes = require('./src/routes/discovery');
 const teamRoutes = require('./src/routes/teams');
+const funnelRoutes = require('./src/routes/funnel');
 const { mountMcpOnExpress } = require('./src/mcp-server');
 
 // Initialize core systems
@@ -343,6 +344,7 @@ const PAID_ROUTE_PATTERNS = [
   app.use('/api/v1/compliance', readLimiter, complianceRoutes);
   app.use('/api/v1/discovery', readLimiter, discoveryRoutes);
   app.use('/api/v1/teams', teamRoutes);
+  app.use('/api/v1/funnel', readLimiter, funnelRoutes);
 
   // MCP server (Streamable HTTP transport)
   mountMcpOnExpress(app, '/mcp');
@@ -517,6 +519,13 @@ Public Key: https://agentstamp.org/.well-known/passport-public-key
 - trust_check: Single-call trust verdict for any wallet address
 - trust_compare: Compare trust scores of multiple agents side-by-side
 - trust_network: Network-wide trust statistics and social proof
+- compliance_report: EU AI Act compliance report for an agent
+- get_verifiable_credential: W3C Verifiable Credential export for an agent
+- dns_discovery: DNS TXT discovery check for an agent domain
+- bridge_erc8004_lookup: Look up ERC-8004 on-chain agent + trust score
+- bridge_erc8004_trust_check: Trust verdict for an ERC-8004 agent
+- team_trust_check: Aggregate trust verdict for a multi-agent team
+- create_team: Create a new agent team for multi-agent trust scoring
 
 ## SDK
 - npm install agentstamp-verify
@@ -608,6 +617,13 @@ ${agentUrls}</urlset>`);
   setInterval(() => {
     try { database.cleanupExpired(); } catch (e) { console.error('Cleanup error:', e.message); }
   }, 10 * 60 * 1000);
+
+  // Independent liveness probe sweep every 30 minutes — externally-anchored trust signal
+  // (probes each registered agent's declared endpoint; feeds provenance/independent_signals, never self-reported)
+  const { runLivenessSweep } = require('./src/livenessProbe');
+  setInterval(() => {
+    runLivenessSweep().catch((e) => console.error('[livenessProbe] sweep error:', e.message));
+  }, 30 * 60 * 1000);
 
   // Sentry error handler — must be after all routes
   const Sentry = require('@sentry/node');

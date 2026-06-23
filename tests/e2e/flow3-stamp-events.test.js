@@ -217,21 +217,25 @@ describe('Flow 3 — Stamp Event Recording + Audit Queries', () => {
     });
   });
 
-  // ── Step 9: Stamp event — mismatched wallets → 403 ───────────────────────
-  describe('Step 9: POST /api/v1/stamp/event with mismatched wallets (403)', () => {
-    it('returns HTTP 403', async () => {
-      const differentWallet = makeSignedWallet();
+  // ── Step 9: Stamp event — counterparty attestation (caller ≠ subject) → 201 ──
+  // A relying party signing an outcome ABOUT another agent is now a valid
+  // counterparty attestation (an externally-anchored, non-self-reported signal),
+  // recorded as attestation_type: 'counterparty_confirmed'. (Previously this was a 403.)
+  describe('Step 9: POST /api/v1/stamp/event as a counterparty (caller ≠ subject) → 201 counterparty_confirmed', () => {
+    it('returns HTTP 201 with counterparty_confirmed attestation', async () => {
+      const counterparty = makeSignedWallet();
       const body = {
-        wallet_address: wallet.address, // different from header
+        wallet_address: wallet.address, // subject differs from the signing (attester) wallet
         action: 'access_check',
         outcome: 'denied',
       };
       const res = await post('/api/v1/stamp/event', {
-        headers: await differentWallet.signHeaders('stamp_event', body),
+        headers: await counterparty.signHeaders('stamp_event', body),
         body,
       });
-      expect(res.status).toBe(403);
-      expect(res.body.error).toMatch(/mismatch/i);
+      expect(res.status).toBe(201);
+      expect(res.body.attestation_type).toBe('counterparty_confirmed');
+      expect(res.body.attester_wallet.toLowerCase()).toBe(counterparty.address.toLowerCase());
     });
   });
 

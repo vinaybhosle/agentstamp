@@ -57,7 +57,10 @@ async function resolveAndCheckHostname(hostname) {
         return { safe: false, error: 'Hostname resolves to a private IP address' };
       }
     }
-    return { safe: true };
+    // Return the validated addresses so callers can pin the connection to a
+    // checked IP (defeats DNS-rebinding: re-resolution at connect time can't
+    // swap in a private IP). Callers that only need the boolean ignore this.
+    return { safe: true, addresses };
   } catch (dnsErr) {
     return { safe: false, error: 'Hostname could not be resolved' };
   }

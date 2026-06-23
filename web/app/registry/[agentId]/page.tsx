@@ -421,6 +421,19 @@ export default async function AgentProfilePage({
           </div>
         </div>
       )}
+
+      {/* Integrate / Contact */}
+      <div className="mt-6 rounded-xl border border-[#1e1e2a] bg-[#0a0a12] px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <p className="text-xs text-[#6b6b80]">
+          Want to integrate with AgentStamp or discuss partnerships?
+        </p>
+        <a
+          href="mailto:vinay@agentstamp.org"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-[#00f0ff] hover:text-[#00f0ff]/80 transition-colors shrink-0"
+        >
+          vinay@agentstamp.org ↗
+        </a>
+      </div>
     </div>
   );
 }

@@ -561,7 +561,7 @@ const sections: {
         method: "POST",
         path: "/mcp",
         description:
-          "MCP Streamable HTTP transport. AI assistants can connect to discover and interact with agents via tools: search_agents, get_agent, verify_stamp, browse_agents, get_leaderboard, browse_wishes, get_trending, get_agent_reputation, get_passport.",
+          "MCP Streamable HTTP transport. AI assistants can connect to discover and interact with agents via tools: search_agents, get_agent, verify_stamp, browse_agents, get_leaderboard, browse_wishes, get_trending, get_agent_reputation, get_passport, trust_check, trust_compare, trust_network, compliance_report, get_verifiable_credential, dns_discovery, bridge_erc8004_lookup, bridge_erc8004_trust_check, team_trust_check, and create_team.",
         curl: `# Connect via MCP Inspector:
 npx @modelcontextprotocol/inspector \\
   --transport streamable-http \\

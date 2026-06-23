@@ -201,8 +201,8 @@ const trustCapabilities = [
   },
   {
     icon: Layers,
-    title: "ERC-8004 Bridge",
-    desc: "Look up any on-chain ERC-8004 agent and get an AgentStamp trust score. Free, zero gas, instant.",
+    title: "ERC-8004 Reputation Layer",
+    desc: "The ERC-8004 Identity Registry tells you WHO an agent is. AgentStamp adds whether to trust it — a free, zero-gas reputation verdict on top of on-chain identity.",
     color: "#00ff88",
   },
   {
@@ -249,7 +249,7 @@ const trustCapabilities = [
   },
   {
     icon: Wrench,
-    title: "17 MCP Tools",
+    title: "19 MCP Tools",
     desc: "Full Claude Desktop integration. Trust check, blind verify, forensic audit, registry browse, reputation lookup — all from your MCP client.",
     color: "#00ff88",
   },
@@ -310,17 +310,18 @@ export default async function HomePage() {
         <div className="absolute inset-0 dot-grid opacity-30" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-[radial-gradient(circle,rgba(0,240,255,0.06)_0%,transparent_70%)]" />
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-5xl sm:text-7xl lg:text-8xl font-bold tracking-tight">
-            <span className="bg-gradient-to-r from-[#00f0ff] to-[#00ff88] bg-clip-text text-transparent">
-              AgentStamp
-            </span>
-          </h1>
-          <p className="mt-6 text-xl sm:text-2xl font-medium text-[#e8e8ed]">
+          <p className="text-xs font-mono font-semibold uppercase tracking-widest text-[#00f0ff] mb-4 opacity-70">
             Stamp your agent into existence.
           </p>
-          <p className="mt-4 max-w-2xl mx-auto text-base sm:text-lg text-[#6b6b80]">
-            The trust intelligence platform for AI agents. x402 micropayments, cryptographic
-            trust scoring, forensic audit trails, and ERC-8004 identity bridging.
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-tight">
+            <span className="text-[#e8e8ed]">Decide whether to trust</span>
+            <br />
+            <span className="bg-gradient-to-r from-[#00f0ff] to-[#00ff88] bg-clip-text text-transparent">
+              an AI agent you&apos;ve never met.
+            </span>
+          </h1>
+          <p className="mt-6 max-w-2xl mx-auto text-base sm:text-lg text-[#6b6b80]">
+            AgentStamp certifies identity and reputation for agents on the open web — so two agents from different organisations can verify each other and safely transact. Check any agent&apos;s trust score in seconds, free.
           </p>
           <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-[#00f0ff]/20 bg-[#00f0ff]/5 px-4 py-1.5 text-xs text-[#00f0ff] font-medium">
             <Sparkles className="size-3" />
@@ -328,17 +329,17 @@ export default async function HomePage() {
           </div>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
+              href="/verify"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#00f0ff] px-7 py-3 text-sm font-bold text-[#050508] transition-all hover:bg-[#00f0ff]/90 hover:shadow-[0_0_20px_rgba(0,240,255,0.3)]"
+            >
+              Check an Agent&apos;s Trust Score — Free
+              <ArrowRight className="size-4" />
+            </Link>
+            <Link
               href="/register"
               className="inline-flex items-center gap-2 rounded-lg bg-[#00ff88] px-7 py-3 text-sm font-bold text-[#050508] transition-all hover:bg-[#00ff88]/90 hover:shadow-[0_0_20px_rgba(0,255,136,0.3)]"
             >
               Register Your Agent — Free
-              <ArrowRight className="size-4" />
-            </Link>
-            <Link
-              href="/registry"
-              className="inline-flex items-center gap-2 rounded-lg bg-[#00f0ff] px-6 py-3 text-sm font-semibold text-[#050508] transition-all hover:bg-[#00f0ff]/90 hover:shadow-[0_0_20px_rgba(0,240,255,0.3)]"
-            >
-              Explore Registry
             </Link>
             <Link
               href="/docs"
@@ -350,6 +351,79 @@ export default async function HomePage() {
           <p className="mt-4 text-xs text-[#3a3a4a]">
             No payment required &middot; 60-second setup &middot; 30-day free registration
           </p>
+        </div>
+      </section>
+
+      {/* Contrast Band — the wedge vs incumbents */}
+      <section className="border-y border-[#1e1e2a] bg-[#0a0a12]">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-8">
+            <div className="flex-shrink-0 rounded-lg bg-[#1e1e2a] px-3 py-1.5 text-[10px] font-mono font-semibold uppercase tracking-widest text-[#6b6b80]">
+              Market position
+            </div>
+            <p className="text-sm text-[#a8a8b8] leading-relaxed">
+              <span className="text-[#6b6b80]">CrowdStrike, Ceros, and SailPoint govern the agents </span>
+              <span className="text-[#e8e8ed] font-medium">inside</span>
+              <span className="text-[#6b6b80]"> your company.</span>
+              {" "}
+              <span className="text-[#00f0ff] font-semibold">AgentStamp certifies the ones outside it</span>
+              <span className="text-[#6b6b80]"> — so two agents from different organisations can verify each other&apos;s identity and reputation before they transact.</span>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Is / Is Not Band */}
+      <section className="py-12 border-b border-[#1e1e2a]">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {/* IS */}
+            <div className="rounded-xl border border-[#00ff88]/20 bg-[#00ff88]/5 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <CheckCircle2 className="size-4 text-[#00ff88]" />
+                <span className="text-sm font-semibold text-[#00ff88] uppercase tracking-wider">AgentStamp is</span>
+              </div>
+              <ul className="space-y-2.5 text-sm text-[#a8a8b8]">
+                <li className="flex items-start gap-2">
+                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#00ff88] shrink-0" />
+                  Open-web identity and reputation certification for any AI agent
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#00ff88] shrink-0" />
+                  Verify-before-you-serve — check trust score before responding to an agent you&apos;ve never met
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#00ff88] shrink-0" />
+                  A portable trust signal and forensic audit trail any verifier can check
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#00ff88] shrink-0" />
+                  The reputation layer for ERC-8004 — reading on-chain identity and adding the trust verdict
+                </li>
+              </ul>
+            </div>
+            {/* IS NOT */}
+            <div className="rounded-xl border border-[#ff5f56]/20 bg-[#ff5f56]/5 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <ShieldAlert className="size-4 text-[#ff5f56]" />
+                <span className="text-sm font-semibold text-[#ff5f56] uppercase tracking-wider">AgentStamp is not</span>
+              </div>
+              <ul className="space-y-2.5 text-sm text-[#a8a8b8]">
+                <li className="flex items-start gap-2">
+                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#ff5f56] shrink-0" />
+                  Runtime or perimeter security (prompt-injection defence, device-bound keys, per-action authorisation)
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#ff5f56] shrink-0" />
+                  An enterprise agent-governance platform for agents you already own
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#ff5f56] shrink-0" />
+                  A replacement for CrowdStrike/Ceros — pair AgentStamp with those tools for full-stack agent security
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -428,8 +502,8 @@ export default async function HomePage() {
               },
               {
                 icon: Layers,
-                title: "ERC-8004 Bridge",
-                desc: "Look up any of 24K+ on-chain agents by ERC-8004 ID and get an AgentStamp trust score. Zero gas, free endpoint.",
+                title: "ERC-8004 Reputation Layer",
+                desc: "AgentStamp is the open reputation layer for ERC-8004. On-chain identity tells you WHO — AgentStamp tells you whether to trust it. Zero gas, free endpoint.",
                 color: "#00f0ff",
               },
               {

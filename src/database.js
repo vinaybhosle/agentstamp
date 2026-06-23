@@ -303,6 +303,33 @@ function initialize() {
     // Column already exists — safe to ignore
   }
 
+  // Liveness probe columns on agents (v2.5.0 — migration-safe)
+  try { db.exec('ALTER TABLE agents ADD COLUMN liveness_ok INTEGER DEFAULT NULL'); } catch (e) { /* exists */ }
+  try { db.exec('ALTER TABLE agents ADD COLUMN liveness_checked_at TEXT DEFAULT NULL'); } catch (e) { /* exists */ }
+  try { db.exec('ALTER TABLE agents ADD COLUMN liveness_success_count INTEGER DEFAULT 0'); } catch (e) { /* exists */ }
+  try { db.exec('ALTER TABLE agents ADD COLUMN liveness_total_count INTEGER DEFAULT 0'); } catch (e) { /* exists */ }
+
+  // Liveness checks table (v2.5.0)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS liveness_checks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_id TEXT NOT NULL,
+      wallet_address TEXT NOT NULL,
+      endpoint_url TEXT NOT NULL,
+      ok INTEGER NOT NULL,
+      status_code INTEGER,
+      latency_ms INTEGER,
+      checked_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_liveness_checks_agent ON liveness_checks(agent_id);
+  `);
+
+  // Counterparty attestation columns on stamp_events (v2.5.0 — migration-safe)
+  try { db.exec("ALTER TABLE stamp_events ADD COLUMN attestation_type TEXT DEFAULT 'self_reported'"); } catch (e) { /* exists */ }
+  try { db.exec('ALTER TABLE stamp_events ADD COLUMN attester_wallet TEXT DEFAULT NULL'); } catch (e) { /* exists */ }
+  try { db.exec('ALTER TABLE stamp_events ADD COLUMN sequence INTEGER DEFAULT NULL'); } catch (e) { /* exists */ }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_stamp_events_stamp_seq ON stamp_events(stamp_id, sequence)');
+
   // Team trust scoring tables (v2.4.0)
   db.exec(`
     CREATE TABLE IF NOT EXISTS teams (
@@ -431,6 +458,14 @@ function cleanupExpired() {
     const pruned = db.prepare("DELETE FROM heartbeat_log WHERE recorded_at < datetime('now', '-90 days')").run();
     if (pruned.changes > 0) {
       console.log(`Pruned ${pruned.changes} heartbeat_log entries older than 90 days`);
+    }
+  } catch (e) { /* best-effort */ }
+
+  // Prune old liveness probe rows (keep 30 days; rolling counters on agents are retained)
+  try {
+    const prunedLiveness = db.prepare("DELETE FROM liveness_checks WHERE checked_at < datetime('now', '-30 days')").run();
+    if (prunedLiveness.changes > 0) {
+      console.log(`Pruned ${prunedLiveness.changes} liveness_checks entries older than 30 days`);
     }
   } catch (e) { /* best-effort */ }
 

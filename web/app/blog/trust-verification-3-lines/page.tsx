@@ -64,7 +64,7 @@ print(f"Score: {result['score']}, Tier: {result['tier']}")`}
       <pre className="bg-[#1a1a2e] rounded-lg p-4 overflow-x-auto text-sm">
 {`claude mcp add --transport sse agentstamp https://agentstamp.org/mcp`}
       </pre>
-      <p className="text-[#d4d4d8]">17 MCP tools available including <code className="text-[#818cf8]">trust_check</code>, <code className="text-[#818cf8]">compliance_report</code>, <code className="text-[#818cf8]">get_verifiable_credential</code>, and <code className="text-[#818cf8]">dns_discovery</code>.</p>
+      <p className="text-[#d4d4d8]">19 MCP tools available including <code className="text-[#818cf8]">trust_check</code>, <code className="text-[#818cf8]">compliance_report</code>, <code className="text-[#818cf8]">get_verifiable_credential</code>, <code className="text-[#818cf8]">dns_discovery</code>, and the multi-agent tools <code className="text-[#818cf8]">team_trust_check</code> and <code className="text-[#818cf8]">create_team</code>.</p>
 
       <h2 className="text-2xl font-semibold text-[#e8e8ed] mt-8">What the Trust Score Means</h2>
       <p className="text-[#d4d4d8]">AgentStamp&apos;s trust score (0-100) is dynamic. It decays without activity:</p>
@@ -87,7 +87,7 @@ print(f"Score: {result['score']}, Tier: {result['tier']}")`}
       </ul>
 
       <div className="mt-12 pt-6 border-t border-[#27272a]">
-        <p className="text-sm text-[#71717a]">AgentStamp is open-source. Free tier includes: 7-day stamp, 30-day registration, unlimited trust checks, 17 MCP tools.</p>
+        <p className="text-sm text-[#71717a]">AgentStamp is open-source. Free tier includes: 7-day stamp, 30-day registration, unlimited trust checks, and 19 MCP tools.</p>
       </div>
     </article>
   );
