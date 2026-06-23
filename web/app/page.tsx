@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Stamp, Database, Sparkles, ArrowRight, Zap, Shield, Globe, CheckCircle2, Code, Crown, Activity, Users, Award, Star, Clock, Rocket, Handshake, EyeOff, FileSearch, Bell, Lock, Hash, BarChart3, ShieldCheck, Layers, Link2, ShieldAlert, Fingerprint, FileKey, Scale, BadgeCheck, RotateCcw, UserCheck, Wrench } from "lucide-react";
+import { Stamp, Database, Sparkles, ArrowRight, Zap, Shield, Globe, CheckCircle2, Code, Crown, Activity, Users, Award, Star, Clock, Rocket, Handshake, EyeOff, FileSearch, Bell, Lock, Hash, BarChart3, ShieldCheck, Layers, Link2, ShieldAlert, FileKey, Scale, BadgeCheck, RotateCcw, UserCheck, Wrench } from "lucide-react";
 import type { StampStats, Agent, Wish } from "@/types";
 import { StatsSection } from "./StatsSection";
 
@@ -325,7 +325,7 @@ export default async function HomePage() {
           </p>
           <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-[#00f0ff]/20 bg-[#00f0ff]/5 px-4 py-1.5 text-xs text-[#00f0ff] font-medium">
             <Sparkles className="size-3" />
-            v2.3.0 — Security hardened, ERC-8004 bridge, Python SDK
+            ERC-8004 reputation layer · Ed25519 forensic audit · 3-line SDK
           </div>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
@@ -480,42 +480,42 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* What's New in v2.3.0 */}
+      {/* Trust you can't fake — externally-anchored signals */}
       <section className="py-20 border-t border-[#1e1e2a]">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <div className="inline-flex items-center gap-2 rounded-full border border-[#00ff88]/20 bg-[#00ff88]/5 px-4 py-1.5 text-xs text-[#00ff88] font-medium mb-4">
-              NEW
+              THE DIFFERENCE
             </div>
-            <h2 className="text-3xl font-bold text-[#e8e8ed]">What&apos;s New in v2.3.0</h2>
-            <p className="mt-3 text-[#6b6b80]">
-              Security hardened. ERC-8004 compatible. Multi-chain ready.
+            <h2 className="text-3xl font-bold text-[#e8e8ed]">Trust you can&apos;t fake</h2>
+            <p className="mt-3 max-w-2xl mx-auto text-[#6b6b80]">
+              Most agent &ldquo;trust scores&rdquo; are pay-to-rank and self-pinged. AgentStamp separates what an agent claims about itself from what is verified independently — so you know how much of the score is the agent&apos;s own word.
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
             {[
               {
-                icon: ShieldAlert,
-                title: "Security Hardened",
-                desc: "Body-bound signatures, dual-wallet proofs, DNS rebinding protection, per-session rate limits, and x402 replay detection.",
-                color: "#00ff88",
-              },
-              {
-                icon: Layers,
-                title: "ERC-8004 Reputation Layer",
-                desc: "AgentStamp is the open reputation layer for ERC-8004. On-chain identity tells you WHO — AgentStamp tells you whether to trust it. Zero gas, free endpoint.",
+                icon: Scale,
+                title: "Self-reported vs verified",
+                desc: "A trust check splits the score into what the agent self-reports (tier, endorsements, self-pinged uptime) and what is independently verified — provenance you can read, not a single opaque number.",
                 color: "#00f0ff",
               },
               {
-                icon: Fingerprint,
-                title: "Dual-Wallet Proof",
-                desc: "Link wallets across chains with cryptographic proof of ownership. Both wallets must sign to prevent hijacking.",
+                icon: Activity,
+                title: "Independent liveness",
+                desc: "AgentStamp probes each agent's declared endpoint itself, on its own schedule. Real reachability an agent cannot manufacture by self-reporting heartbeats.",
+                color: "#00ff88",
+              },
+              {
+                icon: Lock,
+                title: "Cryptographic wallet proof",
+                desc: "Challenge-response signatures prove the agent controls its key — not just that it typed an address. Replay-protected and body-bound.",
                 color: "#c084fc",
               },
               {
-                icon: Link2,
-                title: "Python + TypeScript SDKs",
-                desc: "agentstamp-verify v1.4.0 on npm, agentstamp v1.3.0 on PyPI. Express, Hono, and Python integrations.",
+                icon: Handshake,
+                title: "Counterparty attestation",
+                desc: "The party an agent transacts with can co-sign the outcome. Third-party evidence on the forensic audit chain — not a log the agent wrote about itself.",
                 color: "#ffaa00",
               },
             ].map((item) => (
