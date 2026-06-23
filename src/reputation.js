@@ -1,4 +1,5 @@
 const { getDb } = require('./database');
+const { computeLivenessRatio } = require('./livenessProbe');
 
 /**
  * Reputation Score (0-100) formula:
@@ -258,6 +259,26 @@ function computeReputation(agentId) {
   const rawScore = tierScore + endorsementScore + decayedUptimeScore + momentum.effective + wishScore + walletVerifiedBonus - decayInfo.penalty;
   const score = clamp(0, 100, Math.round(rawScore));
 
+  // ─── Independent signals (additive — do NOT affect score) ───────────────────
+  const livenessRatio = computeLivenessRatio(agent);
+
+  // Provenance partition of existing breakdown points
+  // self_reported: points the agent earned by its own actions (tier, endorsements, uptime, momentum, wishes)
+  const selfReportedPts = Math.round(tierScore) + Math.round(endorsementScore) +
+    Math.round(decayedUptimeScore * 10) / 10 +
+    Math.round(momentum.effective * 10) / 10 +
+    Math.round(wishScore);
+
+  // independently_verified: cryptographic wallet proof + observed liveness
+  // NOTE: liveness contribution is reported in provenance ONLY — NOT added to score
+  const livenessContribution = livenessRatio.checks > 0
+    ? Math.round((livenessRatio.ratio || 0) * 10)
+    : 0;
+  const indVerifiedPts = walletVerifiedBonus + livenessContribution;
+
+  const totalProvenance = Math.max(1, selfReportedPts + indVerifiedPts);
+  const independentPct = Math.round(indVerifiedPts / totalProvenance * 100);
+
   return {
     score,
     label: getLabel(score),
@@ -289,6 +310,20 @@ function computeReputation(agentId) {
       wishes: 5,
       wallet_verified: 5,
     },
+    independent_signals: Object.freeze({
+      liveness: livenessRatio,
+      wallet_verified: !!agent.wallet_verified,
+    }),
+    provenance: Object.freeze({
+      self_reported: selfReportedPts,
+      independently_verified: indVerifiedPts,
+      independent_pct: independentPct,
+      // These totals describe how much of an agent's trust is self-generated vs
+      // externally anchored. They do NOT sum to `score`: the liveness portion of
+      // independently_verified is surfaced here but is intentionally not added to
+      // the numeric trust score (score formula is unchanged for backward compat).
+      note: 'self_reported + independently_verified is a provenance breakdown, not the trust score; the liveness portion is reported here but not added to score.',
+    }),
   };
 }
 

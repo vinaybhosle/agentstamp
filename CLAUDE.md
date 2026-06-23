@@ -1,56 +1,44 @@
 # AgentStamp — Claude Code Context
 
-## Project Overview
+You have MemPalace memory. On session start, run `mempalace_status` to load your memory protocol and AAAK spec.
 
-AgentStamp is an x402-powered platform for AI agent identity certification, public registry, and a digital wishing well. Agents register, get certified, and can be verified by other agents via the agentstamp-verify SDK.
+## Quick Identity
+- Product: AgentStamp (agentstamp.org) — AI agent identity certification platform
+- Owner: Vinay Prabhu, DataBridge Solutions, Pune India
+- Repo: ~/Desktop/AgentStamp/
+- Twitter: @AgentStampHQ
+- Email routing: vinay@agentstamp.org via Cloudflare
 
-## Architecture
+## Stack
+- Express backend: port 4005 (PM2: agentstamp-backend)
+- Next.js 15 frontend: port 4000 prod / 3000 dev (PM2: agentstamp-web)
+- SQLite database
+- Ed25519 cryptography for stamp signing
+- x402/PayAI on Base (wallet: 0x8c9e0882b4c6e6568fe76F16D59F7E080465E5C8)
+- Cloudflare Tunnel active
+- npm SDK: agentstamp-verify (requireStamp() middleware)
 
-- **Backend**: Express API on port 3405 (PM2-managed, Cloudflare Tunnel)
-- **Frontend**: Next.js 14 + TypeScript + Tailwind + shadcn/ui on port 3000
-- **Proxy**: Frontend proxies `/api/*` to backend
-- **Payments**: PayAI (`https://facilitator.payai.network`) via `x402-express` npm package (no API keys required)
-- **Recipient wallet**: `0x8c9e0882b4c6e6568fe76F16D59F7E080465E5C8` (Base)
-- **Domain**: `agentstamp.org`
-- **Twitter/X**: `@AgentStampHQ`
-- **Contact**: `vinay@agentstamp.org` (Cloudflare Email Routing → Gmail)
+## Key Status
+- Three Gold Stamps minted via Solana x402 transactions
+- Pre-revenue (target exit: $2–5K MRR, 500–1,000 registered agents)
+- AgentShield Grade A achieved
 
-## Key Details
+## Security Notes (audit findings — RESOLVED)
+- Spoofable wallet auth headers — FIXED: challenge-response signatures with body-hash binding + 120s replay window (src/walletAuth.js, src/middleware/walletSignature.js)
+- Fail-open x402 middleware — FIXED: fail-CLOSED guard returns 503 on middleware failure + SQLite-backed payment replay dedup (server.js)
+- Unbounded MCP session maps — FIXED: MAX_SESSIONS=1000 + 30-min idle eviction + per-session rate limit (src/mcp-server.js)
+- Liveness probe is SSRF-hardened: connect-time IP pinning (defeats DNS-rebinding) + no redirect-follow (src/livenessProbe.js, src/utils/network.js)
 
-- Only real registered agent is **ShippingRatesBot** (all seed/demo data removed)
-- Strategic growth centers on the **agentstamp-verify SDK** (`requireStamp()` middleware for Express/Hono)
-- Plan: integrate with ShippingRates first as proof of production use, then publish to npm
+## Trust Model Note (2026-06-23)
+Trust score is participation-based by design; externally-anchored signals are surfaced separately via `provenance` / `independent_signals` on `/trust/check` (independent endpoint liveness probe + cryptographic wallet proof + counterparty-attested stamp events). The numeric score formula is unchanged. See memory `agentstamp-gap-analysis-2026-06-23`.
 
-## Development Conventions
+## Memory
+You have MemPalace agents. Run `mempalace_list_agents` to see them.
+For decisions/history: `mempalace_search "query" --wing agentstamp`
+- Shared LLM wiki context: `/Users/vinaybhosle/Knowledge/wiki/agentstamp/overview.md`
+- Cross-product wiki context: `/Users/vinaybhosle/Knowledge/wiki/cross-product/overview.md`
 
-- Use conventional commits: `feat:`, `fix:`, `chore:`, `docs:`
-- TypeScript/Node.js stack
-- Next.js 14 App Router patterns
-- shadcn/ui for components
-- PM2 for process management
-- Cloudflare Tunnel for external access
-- Never hardcode secrets — use environment variables
-
-## ECC Skills to Activate
-
-When working on this project, prefer these ECC skills:
-- `agent-harness-construction` — Action space design for agent APIs
-- `enterprise-agent-ops` — Agent lifecycle management
-- `security-review` — Security audit (critical for trust platform)
-- `security-scan` — AgentShield scanning
-- `api-design` — REST API patterns for registry
-- `frontend-patterns` — Next.js/React patterns
-- `tdd-workflow` — Test-driven development
-- `content-engine` — Marketing content for @AgentStampHQ
-- `x-api` — Twitter/X API for @AgentStampHQ posting
-- `investor-materials` — Pitch deck and fundraising docs
-- `market-research` — Competitive analysis
-
-## Subagent Routing
-
-- **Registry API development** → Use Sonnet
-- **Security/certification logic** → Use Opus (trust-critical)
-- **Frontend UI work** → Use Sonnet
-- **Documentation** → Use Haiku
-- **SDK development** → Use Sonnet
-- **Marketing content** → Use Sonnet
+## Coding Style
+- Complete production-ready outputs only (no partial examples)
+- Always check security audit findings before adding auth flows
+- Ed25519 signatures must be verified server-side, never client-side

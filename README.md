@@ -39,7 +39,7 @@ npm run seed           # 5 agents, 5 stamps, 10 wishes, 5 endorsements
 - **Signing:** Ed25519 keypair (auto-generated)
 - **Frontend:** Next.js 16 + Tailwind CSS + shadcn/ui
 - **SDK:** `agentstamp-verify` on npm (Express + Hono middleware)
-- **MCP:** Live MCP server at `/mcp` (Streamable HTTP transport, 17 tools)
+- **MCP:** Live MCP server at `/mcp` (Streamable HTTP transport, 19 tools)
 - **HTTPS:** Cloudflare Tunnel
 - **Process Manager:** PM2
 
@@ -53,6 +53,15 @@ npm run seed           # 5 agents, 5 stamps, 10 wishes, 5 endorsements
 - **Process error handlers** — uncaughtException (graceful shutdown) + unhandledRejection
 - **Input sanitization** — HTML tag stripping, field validation, parameterized SQL queries
 - **File permissions** — Ed25519 keys and .env at mode 0o600
+
+## Codex Workflow
+
+- Browser verification default:
+  `/Users/vinaybhosle/Desktop/AgentStamp/.agents/skills/codex-browser-verification/SKILL.md`
+- Automation playbooks and schedule-ready specs:
+  `/Users/vinaybhosle/Desktop/AgentStamp/.agents/skills/codex-automation-playbooks/SKILL.md`
+
+Security-first rule: trust/auth/x402 outputs from automation must still receive human signoff before being treated as production-safe conclusions.
 
 ## API Reference
 
@@ -130,8 +139,13 @@ Connect any MCP client to `https://agentstamp.org/mcp`:
 | `trust_check` | Single-call trust verdict for any wallet | Free |
 | `trust_compare` | Compare trust scores of up to 5 wallets | Free |
 | `trust_network` | Network-wide trust statistics | Free |
+| `compliance_report` | EU AI Act compliance report for an agent | Free |
+| `get_verifiable_credential` | W3C Verifiable Credential export for an agent | Free |
+| `dns_discovery` | DNS TXT discovery check for an agent domain | Free |
 | `bridge_erc8004_lookup` | Look up ERC-8004 on-chain agent + trust score | Free |
 | `bridge_erc8004_trust_check` | Trust verdict for ERC-8004 agent | Free |
+| `team_trust_check` | Aggregate trust verdict for a multi-agent team | Free |
+| `create_team` | Create a new agent team for multi-agent trust scoring | Free |
 
 ## GitHub Action — CI/CD Trust Gating
 

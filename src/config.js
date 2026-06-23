@@ -1,5 +1,7 @@
 require('dotenv').config();
 const crypto = require('crypto');
+const os = require('os');
+const path = require('path');
 
 if (!process.env.BLIND_TOKEN_SECRET) {
   console.error('BLIND_TOKEN_SECRET is required in .env — blind tokens will not persist without it.');
@@ -20,7 +22,7 @@ const config = {
   solanaWalletAddress: process.env.SOLANA_WALLET_ADDRESS,
   facilitatorUrl: process.env.FACILITATOR_URL || 'https://facilitator.payai.network',
   network: process.env.NETWORK || 'base',
-  signingKeyPath: process.env.SIGNING_KEY_PATH || './keys/ed25519_private.pem',
+  signingKeyPath: process.env.SIGNING_KEY_PATH || path.join(os.homedir(), '.agentstamp', 'keys', 'ed25519_private.pem'),
   dbPath: process.env.DB_PATH || './data/agentstamp.db',
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60000,
   rateLimitMaxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100,

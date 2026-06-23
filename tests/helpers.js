@@ -38,6 +38,10 @@ function createTestDb() {
       heartbeat_count INTEGER DEFAULT 0,
       last_reputation_score INTEGER DEFAULT NULL,
       wallet_verified INTEGER DEFAULT 0,
+      liveness_ok INTEGER DEFAULT NULL,
+      liveness_checked_at TEXT DEFAULT NULL,
+      liveness_success_count INTEGER DEFAULT 0,
+      liveness_total_count INTEGER DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (stamp_id) REFERENCES stamps(id)
     );
@@ -128,8 +132,24 @@ function createTestDb() {
       gate_reason TEXT,
       endpoint TEXT,
       metadata TEXT,
+      attestation_type TEXT DEFAULT 'self_reported',
+      attester_wallet TEXT DEFAULT NULL,
+      sequence INTEGER DEFAULT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE INDEX IF NOT EXISTS idx_stamp_events_stamp_seq ON stamp_events(stamp_id, sequence);
+
+    CREATE TABLE IF NOT EXISTS liveness_checks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_id TEXT NOT NULL,
+      wallet_address TEXT NOT NULL,
+      endpoint_url TEXT NOT NULL,
+      ok INTEGER NOT NULL,
+      status_code INTEGER,
+      latency_ms INTEGER,
+      checked_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_liveness_checks_agent ON liveness_checks(agent_id);
 
     CREATE TABLE trust_delegations (
       id TEXT PRIMARY KEY,

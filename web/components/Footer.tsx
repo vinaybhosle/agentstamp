@@ -9,6 +9,8 @@ const navigationLinks = [
   { href: "/about", label: "About" },
 ];
 
+const partnerEmail = "mailto:vinay@agentstamp.org";
+
 const discoveryLinks = [
   { href: "/.well-known/mcp.json", label: "MCP Manifest" },
   { href: "/.well-known/agent-card.json", label: "Agent Card" },
@@ -56,7 +58,7 @@ export function Footer() {
   return (
     <footer className="border-t border-[#1e1e2a] bg-[#050508]">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
-        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-5">
           {/* Navigation */}
           <div>
             <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-[#6b6b80]">
@@ -73,6 +75,28 @@ export function Footer() {
                   </Link>
                 </li>
               ))}
+            </ul>
+          </div>
+
+          {/* Partner */}
+          <div>
+            <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-[#6b6b80]">
+              Partner / Integrate
+            </h3>
+            <ul className="space-y-2">
+              <li>
+                <a
+                  href={partnerEmail}
+                  className="text-sm text-[#00ff88]/80 transition-colors hover:text-[#00ff88] font-medium"
+                >
+                  vinay@agentstamp.org ↗
+                </a>
+              </li>
+              <li>
+                <p className="text-xs text-[#3a3a4a] leading-relaxed">
+                  SDK integrations, platform partnerships, and API access enquiries welcome.
+                </p>
+              </li>
             </ul>
           </div>
 

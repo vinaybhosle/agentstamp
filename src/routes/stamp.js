@@ -278,18 +278,21 @@ router.get('/stats', (req, res) => {
 });
 
 // POST /api/v1/stamp/event — Record a stamp verification event
+// Supports both self-reported (caller === subject) and counterparty-confirmed (caller !== subject) attestations.
 router.post('/event', requireSignature({ required: true, action: 'stamp_event' }), (req, res) => {
   try {
-    // Authentication: require x-wallet-address header and verify it matches body
+    // Authentication: require x-wallet-address header
     const callerWallet = req.headers['x-wallet-address'];
     if (!callerWallet) {
       return res.status(401).json({ success: false, error: 'x-wallet-address header required' });
     }
     const resolvedCaller = resolvePrimaryWallet(callerWallet);
     const resolvedBody = resolvePrimaryWallet(req.body.wallet_address);
-    if (resolvedCaller !== resolvedBody) {
-      return res.status(403).json({ success: false, error: 'Wallet mismatch: caller does not match event wallet' });
-    }
+
+    // Determine attestation type from caller vs subject identity
+    const isSelf = resolvedCaller === resolvedBody;
+    const attestationType = isSelf ? 'self_reported' : 'counterparty_confirmed';
+    const attesterWallet = isSelf ? null : resolvedCaller;
 
     const validation = validateStampEvent(req.body);
     if (!validation.valid) {
@@ -301,21 +304,65 @@ router.post('/event', requireSignature({ required: true, action: 'stamp_event' }
     const now = new Date().toISOString();
     const metadata = req.body.metadata ? JSON.stringify(req.body.metadata) : null;
 
-    db.prepare(`
-      INSERT INTO stamp_events (id, stamp_id, agent_id, wallet_address, action, outcome, gate_reason, endpoint, metadata, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      eventId,
-      req.body.stamp_id || null,
-      req.body.agent_id || null,
-      req.body.wallet_address,
-      req.body.action,
-      req.body.outcome,
-      req.body.gate_reason || null,
-      req.body.endpoint || null,
-      metadata,
-      now
-    );
+    // Anti-spam: a counterparty cannot flood identical attestations about a subject.
+    // (The route is already per-IP rate limited; this also blocks key-distributed spam
+    // of the same claim.) Reject a duplicate (attester, subject, stamp_id, action, outcome)
+    // within a 10-minute window. Self-reported events are the agent's own log and exempt.
+    if (!isSelf) {
+      const dup = db.prepare(`
+        SELECT 1 FROM stamp_events
+        WHERE attester_wallet = ? AND wallet_address = ?
+          AND IFNULL(stamp_id, '') = IFNULL(?, '') AND action = ? AND outcome = ?
+          AND created_at > datetime('now', '-10 minutes')
+        LIMIT 1
+      `).get(attesterWallet, req.body.wallet_address, req.body.stamp_id || null, req.body.action, req.body.outcome);
+      if (dup) {
+        return res.status(409).json({
+          success: false,
+          error: 'Duplicate counterparty attestation: an identical attestation was already recorded recently.',
+        });
+      }
+    }
+
+    // Atomically compute the monotonic sequence and insert in a single transaction.
+    // better-sqlite3 transactions hold an exclusive write lock, so MAX(sequence)+1
+    // cannot race under concurrent or multi-process writes.
+    const insertSequenced = db.transaction(() => {
+      let seq;
+      if (req.body.stamp_id) {
+        const maxRow = db.prepare(
+          'SELECT MAX(sequence) as max_seq FROM stamp_events WHERE stamp_id = ?'
+        ).get(req.body.stamp_id);
+        seq = (maxRow && maxRow.max_seq !== null) ? maxRow.max_seq + 1 : 1;
+      } else {
+        const maxRow = db.prepare(
+          'SELECT MAX(sequence) as max_seq FROM stamp_events WHERE wallet_address = ? AND stamp_id IS NULL'
+        ).get(req.body.wallet_address);
+        seq = (maxRow && maxRow.max_seq !== null) ? maxRow.max_seq + 1 : 1;
+      }
+
+      db.prepare(`
+        INSERT INTO stamp_events
+          (id, stamp_id, agent_id, wallet_address, action, outcome, gate_reason, endpoint, metadata, attestation_type, attester_wallet, sequence, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        eventId,
+        req.body.stamp_id || null,
+        req.body.agent_id || null,
+        req.body.wallet_address,
+        req.body.action,
+        req.body.outcome,
+        req.body.gate_reason || null,
+        req.body.endpoint || null,
+        metadata,
+        attestationType,
+        attesterWallet,
+        seq,
+        now
+      );
+      return seq;
+    });
+    const sequence = insertSequenced();
 
     appendEvent('stamp_event', { stamp_id: req.body.stamp_id, agent_id: req.body.agent_id, wallet_address: req.body.wallet_address, action: req.body.action, outcome: req.body.outcome });
 
@@ -323,6 +370,9 @@ router.post('/event', requireSignature({ required: true, action: 'stamp_event' }
       success: true,
       event_id: eventId,
       recorded_at: now,
+      attestation_type: attestationType,
+      attester_wallet: attesterWallet,
+      sequence,
     });
   } catch (err) {
     console.error('Stamp event recording error:', err);

@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Claude Can Use Your Computer Now. Here's How to Make It Verify Trust First.",
-  description: "When Claude calls another agent's API during Computer Use, how does it know that agent is trustworthy? 17 MCP tools that solve this.",
+  description: "When Claude calls another agent's API during Computer Use, how does it know that agent is trustworthy? 19 MCP tools that solve this.",
   alternates: { canonical: "https://agentstamp.org/blog/computer-use-trust-verification" },
   openGraph: {
     title: "Claude Can Use Your Computer Now. Here's How to Make It Verify Trust First.",
@@ -30,7 +30,7 @@ export default function Article() {
       <p className="text-[#d4d4d8]">A Claude Desktop agent calling an external API trusts it implicitly. No verification, no trust score, no audit trail. This is fine for code autocomplete. Not fine when making API calls with real data on your behalf.</p>
 
       <h2 className="text-2xl font-semibold text-[#e8e8ed] mt-8">The Solution: MCP Trust Tools</h2>
-      <p className="text-[#d4d4d8]">AgentStamp provides 17 MCP tools that let any Claude agent verify trust before interacting with external services. All free, no API key needed.</p>
+      <p className="text-[#d4d4d8]">AgentStamp provides 19 MCP tools that let any Claude agent verify trust before interacting with external services. All free for public trust reads, with team operations available through the same MCP surface.</p>
 
       <h3 className="text-xl font-semibold text-[#e8e8ed] mt-6">Setup (30 seconds)</h3>
       <pre className="bg-[#1a1a2e] rounded-lg p-4 overflow-x-auto text-sm">

@@ -86,7 +86,7 @@ const articles = [
   {
     slug: "computer-use-trust-verification",
     title: "Claude Can Use Your Computer Now. Here's How to Make It Verify Trust First.",
-    description: "When Claude calls another agent's API during Computer Use, how does it know that agent is trustworthy? 17 MCP tools that solve this.",
+    description: "When Claude calls another agent's API during Computer Use, how does it know that agent is trustworthy? 19 MCP tools that solve this.",
     date: "2026-03-25",
     tags: ["ai", "security", "mcp"],
   },
